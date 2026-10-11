@@ -1,0 +1,23 @@
+{% extends "base.html" %}
+{% block title %}Progress · mergeparam{% endblock %}
+{% block main %}
+<section class="card narrow">
+  <h1>Progress</h1>
+  <p class="count"><strong>About {{ "{:,}".format(remaining) }}</strong> articles still have <code>|alma_mater=</code> in a covered infobox.</p>
+  <table class="stats">
+    <thead><tr><th scope="col">Infobox</th><th scope="col" class="num">Articles left</th></tr></thead>
+    <tbody>
+      {% for name, n in per_template.items() %}
+      <tr><td><code>{{ "{{" ~ name ~ "}}" }}</code></td><td class="num">{{ "{:,}".format(n) }}</td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  <p class="hint">Counts come from Wikipedia's search index and are approximate. They can lag a few minutes behind,
+    and an article with more than one infobox is counted under each.</p>
+
+  <h2>Edits made with this tool</h2>
+  <p>Every edit summary includes <code>{{ config.HASHTAG }}</code>. The
+    <a href="{{ config.HASHTAGS_URL }}">Hashtags tool</a> lists those edits and can filter by editor.
+    This tool doesn't keep its own record of who did what.</p>
+</section>
+{% endblock %}

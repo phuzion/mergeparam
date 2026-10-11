@@ -1,0 +1,228 @@
+import html
+import re
+from datetime import datetime, timezone
+
+import pytest
+
+from mergeparam import candidates, handoff, preview, replica
+from mergeparam.candidates import Filters
+from mergeparam.web import create_app
+from mergeparam.wiki import Page, WikiBusy
+
+RENAME_TEXT = "{{Infobox person\n| name = A\n| alma_mater = [[Yale University]]\n}}\nText."
+MERGE_TEXT = ("{{Infobox academic\n| name = B\n| education = [[Stanford University]] (BS)\n"
+              "| alma_mater = [[Harvard]]\n}}\nText.")
+
+
+def make_page(title, text, revid=100):
+    return Page(title=title, pageid=1, revid=revid, timestamp="2026-10-01T12:34:56Z",
+                text=text, protection=[])
+
+
+class FakeWiki:
+    def __init__(self, pages, supported=True, busy=False):
+        self.pages = {p.title: p for p in pages}
+        self.supported = supported
+        self.busy = busy
+        self.queries = []
+
+    def search(self, query, limit=20, random=True):
+        if self.busy:
+            raise WikiBusy("busy")
+        self.queries.append(query)
+        return list(self.pages), len(self.pages)
+
+    def search_total(self, query):
+        return 1234
+
+    def latest(self, titles):
+        return [self.pages[t] for t in titles if t in self.pages]
+
+    def revision(self, revid):
+        return next((p for p in self.pages.values() if p.revid == revid), None)
+
+    def resolve_redirects(self, titles):
+        return {"Harvard": "Harvard University"}
+
+    def supports_param(self, template, param):
+        return self.supported
+
+    def lead_html(self, revid):
+        return ('<div class="mw-parser-output"><table class="infobox"><tr><th>Name</th>'
+                '<td onclick="x()"><a href="/wiki/Foo">Foo</a></td></tr></table>'
+                '<p class="mw-empty-elt"></p><p>Lead <script>bad()</script>text.</p></div>')
+
+    def category_exists(self, category):
+        return category != "Missing"
+
+
+@pytest.fixture
+def client_for():
+    def make(*pages, **kw):
+        app = create_app(FakeWiki(list(pages), **kw))
+        app.testing = True
+        return app.test_client()
+    return make
+
+
+def hidden_fields(body):
+    return {html.unescape(k): html.unescape(v)
+            for k, v in re.findall(r'<input type="hidden" name="([^"]+)" value="([^"]*)"', body)}
+
+
+def test_index(client_for):
+    r = client_for().get("/")
+    assert r.status_code == 200
+    assert b"1,234" in r.data
+    assert "default-src 'self'" in r.headers["Content-Security-Policy"]
+
+
+def test_next_redirects_to_fix_with_filters(client_for):
+    r = client_for(make_page("Jane Doe", RENAME_TEXT)).get("/next?category=Category:American_physicists")
+    assert r.status_code == 302
+    assert "/fix?title=Jane+Doe&category=American+physicists" in r.headers["Location"]
+
+
+def test_next_unknown_category(client_for):
+    r = client_for(make_page("Jane Doe", RENAME_TEXT)).get("/next?category=Missing")
+    assert "There is no" in r.get_data(as_text=True)
+
+
+def test_next_skips_unsupported_templates(client_for):
+    r = client_for(make_page("Jane Doe", RENAME_TEXT), supported=False).get("/next")
+    assert r.status_code == 200
+    assert "Couldn" in r.get_data(as_text=True)
+
+
+def test_next_when_wikipedia_busy(client_for):
+    r = client_for(make_page("Jane Doe", RENAME_TEXT), busy=True).get("/next")
+    assert r.status_code == 503
+
+
+def test_fix_rename_builds_wikipedia_form(client_for):
+    r = client_for(make_page("Jane Doe", RENAME_TEXT)).get("/fix?title=Jane+Doe")
+    body = r.get_data(as_text=True)
+    assert r.status_code == 200
+    assert 'action="https://en.wikipedia.org/w/index.php?title=Jane+Doe&amp;action=submit"' in body
+    assert 'target="_blank"' in body
+    fields = hidden_fields(body)
+    assert fields["wpTextbox1"] == RENAME_TEXT.replace("alma_mater", "education")
+    assert fields["wpSummary"].startswith("Renamed deprecated |alma_mater= to |education= per [[Wikipedia:")
+    assert fields["wpSummary"].endswith("#mergeparam")
+    assert fields["editRevId"] == "100"
+    assert fields["wpEdittime"] == "20261001123456"
+    assert fields["wpUltimateParam"] == "1"
+    assert "wpDiff" in fields
+    # context preview is sanitized
+    assert "bad()" not in body and "onclick" not in body
+    assert 'href="https://en.wikipedia.org/wiki/Foo"' in body
+
+
+def test_fix_merge_shows_editable_suggestion(client_for):
+    r = client_for(make_page("John Roe", MERGE_TEXT)).get("/fix?title=John+Roe")
+    body = r.get_data(as_text=True)
+    assert "Combine the two values" in body
+    assert "wpTextbox1" not in body  # merges go through /prepare first
+    assert "{{Plainlist|\n* [[Stanford University]] (BS)\n* [[Harvard]]\n}}" in html.unescape(body)
+
+
+def test_fix_merge_detects_duplicate_via_redirect(client_for):
+    text = MERGE_TEXT.replace("[[Stanford University]] (BS)", "[[Harvard University]] (AB)")
+    body = client_for(make_page("John Roe", text)).get("/fix?title=John+Roe").get_data(as_text=True)
+    assert "Remove the duplicate" in body
+
+
+def test_fix_nothing_to_do(client_for):
+    body = client_for(make_page("Done", "{{Infobox person|education=[[X]]}}")).get("/fix?title=Done")
+    assert "Nothing to do here" in body.get_data(as_text=True)
+
+
+def test_fix_unsupported_template_explained(client_for):
+    r = client_for(make_page("Jane Doe", RENAME_TEXT), supported=False).get("/fix?title=Jane+Doe")
+    assert "doesn't seem to display" in r.get_data(as_text=True)
+
+
+def test_fix_missing_page_404(client_for):
+    assert client_for().get("/fix?title=Nope").status_code == 404
+
+
+def test_prepare_builds_form_from_user_value(client_for):
+    client = client_for(make_page("John Roe", MERGE_TEXT))
+    value = "{{ubl|[[Stanford University]] (BS)|[[Harvard University]] (PhD)}}"
+    r = client.post("/prepare", data={"title": "John Roe", "revid": "100", "value": value.replace("\n", "\r\n")})
+    body = r.get_data(as_text=True)
+    assert "Ready to publish" in body
+    fields = hidden_fields(body)
+    assert "alma_mater" not in fields["wpTextbox1"]
+    assert "| education = " + value + "\n" in fields["wpTextbox1"]
+    assert fields["wpSummary"].startswith("Merged deprecated")
+
+
+def test_prepare_unchanged_value_is_a_drop(client_for):
+    client = client_for(make_page("John Roe", MERGE_TEXT))
+    r = client.post("/prepare", data={"title": "John Roe", "revid": "100",
+                                      "value": "[[Stanford University]] (BS)"})
+    assert hidden_fields(r.get_data(as_text=True))["wpSummary"].startswith("Removed deprecated")
+
+
+def test_prepare_rejects_breaking_value(client_for):
+    client = client_for(make_page("John Roe", MERGE_TEXT))
+    r = client.post("/prepare", data={"title": "John Roe", "revid": "100", "value": "[[A]] | name = Hacked"})
+    body = r.get_data(as_text=True)
+    assert "stray |" in body
+    assert "wpTextbox1" not in body
+    assert "[[A]] | name = Hacked" in html.unescape(body)  # user's input kept
+
+
+def test_prepare_title_mismatch(client_for):
+    client = client_for(make_page("John Roe", MERGE_TEXT))
+    assert client.post("/prepare", data={"title": "Other", "revid": "100", "value": "x"}).status_code == 400
+
+
+def test_stats_and_about(client_for):
+    client = client_for()
+    assert b"Hashtags tool" in client.get("/stats").data
+    assert b"Your edits are your edits" in client.get("/about").data
+
+
+# --------------------------------------------------------------- helpers
+
+def test_filters_normalize():
+    f = Filters.from_args({"category": "category:american_physicists", "project": "WikiProject biography",
+                           "subcats": "1"})
+    assert (f.category, f.project, f.subcats) == ("American physicists", "Biography", True)
+    assert not Filters.from_args({"subcats": "1"}).subcats
+
+
+def test_search_query():
+    q = candidates.search_query(Filters(category='Say "hi"', subcats=True))
+    assert q.startswith('insource:"alma_mater" incategory:Pages_using_infobox_person_with_deprecated_parameters|')
+    assert q.endswith(' deepcategory:"Say \\"hi\\""')
+
+
+def test_project_with_subcats_rejected():
+    with pytest.raises(candidates.FilterError):
+        candidates.random_titles(None, Filters(category="X", subcats=True, project="Biography"))
+
+
+def test_replica_query_shape():
+    sql, args = replica.build_query("American physicists", "Biography", 30)
+    assert "cl_to" not in sql  # removed in MediaWiki 1.45
+    assert sql.count("%s") == len(args)
+    assert args[-3:] == ["American_physicists", "Biography", 30]
+
+
+def test_edit_form_times():
+    page = make_page("A", "x")
+    url, fields = handoff.edit_form(page, "y", "merge", now=datetime(2026, 10, 10, 1, 2, 3, tzinfo=timezone.utc))
+    assert fields["wpStarttime"] == "20261010010203"
+    assert url == "https://en.wikipedia.org/w/index.php?title=A&action=submit"
+
+
+def test_preview_drops_unsafe_urls():
+    out = preview.context('<table class="infobox"><tr><td><a href="javascript:alert(1)">x</a>'
+                          '<img src="//upload.wikimedia.org/a.png" srcset="//upload.wikimedia.org/b.png 2x">'
+                          '</td></tr></table>')
+    assert "javascript:" not in out["infobox"]
+    assert 'src="https://upload.wikimedia.org/a.png"' in out["infobox"]
+    assert "https://upload.wikimedia.org/b.png 2x" in out["infobox"]

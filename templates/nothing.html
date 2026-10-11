@@ -1,0 +1,16 @@
+{% extends "base.html" %}
+{% block title %}{{ page.title }} · mergeparam{% endblock %}
+{% block main %}
+<section class="card narrow">
+  <h1><a href="{{ page.title|wikiurl }}" target="_blank" rel="noopener">{{ page.title }}</a></h1>
+  {% if has_alma %}
+    <p>This article still has <code>|alma_mater=</code>, but its infobox doesn't seem to display
+      <code>|education=</code> yet. Renaming the parameter would hide the information, so the tool won't
+      suggest it.</p>
+    <p class="hint">The infobox template may need updating first. Its talk page is the place to raise that.</p>
+  {% else %}
+    <p>Nothing to do here. <code>|alma_mater=</code> is already gone, so someone may have just fixed it.</p>
+  {% endif %}
+  <a class="btn primary" href="{{ url_for('next_article', skip=page.title, **filters.as_args()) }}">Next article <span aria-hidden="true">→</span></a>
+</section>
+{% endblock %}

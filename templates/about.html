@@ -1,0 +1,43 @@
+{% extends "base.html" %}
+{% block title %}About · mergeparam{% endblock %}
+{% block main %}
+<section class="card narrow prose">
+  <h1>About mergeparam</h1>
+
+  <h2>Why</h2>
+  <p>The <a href="{{ config.RFC_URL }}">RfC “Alma mater vs Education in Infoboxes”</a>, closed on
+    {{ config.RFC_CLOSED }}, found consensus to merge <code>|alma_mater=</code> into <code>|education=</code>.
+    The affected infoboxes now flag <code>|alma_mater=</code> as deprecated. Where an infobox has only
+    <code>|alma_mater=</code>, the fix is a simple rename. Where it has both, someone has to decide how to
+    combine them, as several participants in the RfC pointed out.</p>
+
+  <h2>What it covers</h2>
+  <ul>
+    {% for name, cat in config.TRACKING_CATEGORIES.items() %}
+    <li><code>{{ "{{" ~ name ~ "}}" }}</code> and templates that wrap it, found through
+      <a href="https://en.wikipedia.org/wiki/Category:{{ cat|replace(' ', '_') }}">Category:{{ cat }}</a></li>
+    {% endfor %}
+  </ul>
+  <p>Before suggesting a change, the tool checks that the infobox actually displays <code>|education=</code>,
+    so no information is hidden by the edit.</p>
+
+  <h2>Your edits are your edits</h2>
+  <p>This tool never edits Wikipedia. It sends the suggested text to Wikipedia's own “Show changes” screen,
+    and you decide whether to publish it from your account. You're responsible for each edit, as with
+    any other edit you make. Please look at every diff, and edit at a human pace.
+    See <a href="https://en.wikipedia.org/wiki/Wikipedia:Bot_policy#Assisted_editing_guidelines">assisted editing</a>
+    and <a href="https://en.wikipedia.org/wiki/WP:MEATBOT">WP:MEATBOT</a>.</p>
+  <p>If Wikipedia shows an edit conflict, the article changed after the tool loaded it. Skip it or
+    fix it by hand.</p>
+
+  <h2>Privacy</h2>
+  <p>The tool doesn't use cookies, doesn't log in to anything, and doesn't store anything about you.
+    Your browser talks only to Toolforge and Wikimedia sites. When you publish, you do so directly on
+    Wikipedia under Wikipedia's own privacy policy.</p>
+
+  <h2>Contact and source</h2>
+  <p>Questions, bugs and suggestions: <a href="https://en.wikipedia.org/wiki/User_talk:{{ config.MAINTAINER }}">User talk:{{ config.MAINTAINER }}</a>.
+    {% if config.SOURCE_URL %}The <a href="{{ config.SOURCE_URL }}">source code</a> is available under the MIT license.{% endif %}
+    Inspired by <a href="https://citationhunt.toolforge.org/">Citation Hunt</a>.</p>
+</section>
+{% endblock %}

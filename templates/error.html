@@ -1,0 +1,9 @@
+{% extends "base.html" %}
+{% block title %}Error · mergeparam{% endblock %}
+{% block main %}
+<section class="card narrow">
+  <h1>{{ error.code }} {{ error.name }}</h1>
+  <p>{% if error.code == 404 %}That article doesn't exist on English Wikipedia.{% else %}Something went wrong. Please try again.{% endif %}</p>
+  <a class="btn primary" href="{{ url_for('index') }}">Back to the start</a>
+</section>
+{% endblock %}

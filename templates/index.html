@@ -1,0 +1,55 @@
+{% extends "base.html" %}
+{% block main %}
+<section class="hero">
+  <h1>Help merge <code>|alma_mater=</code> into <code>|education=</code></h1>
+  <p class="lede">
+    In July 2026 an <a href="{{ config.RFC_URL }}">RfC</a> agreed to stop using the
+    <code>|alma_mater=</code> infobox parameter and use <code>|education=</code> instead.
+    Thousands of biographies still need the change, and many of them need a human to decide
+    how the two values fit together.
+  </p>
+  {% if remaining %}
+  <p class="count"><strong>About {{ "{:,}".format(remaining) }}</strong> articles left.</p>
+  {% endif %}
+</section>
+
+{% if error %}<div class="notice error" role="alert">{{ error }}</div>{% endif %}
+{% if message %}<div class="notice">{{ message }}</div>{% endif %}
+
+<section class="how">
+  <h2>How it works</h2>
+  <ol class="how-steps">
+    <li><strong>We pick an article</strong> and suggest the change. If both parameters are filled in, you
+      decide what the combined <code>|education=</code> should say.</li>
+    <li><strong>You review and publish it on Wikipedia.</strong> The tool opens Wikipedia's own
+      “Show changes” screen. You publish the edit from your own account; this tool never edits for you.</li>
+    <li><strong>On to the next one.</strong> Skip anything you're unsure about.</li>
+  </ol>
+  <p class="hint">Log in to Wikipedia first so the edit is credited to your account. If you're logged out,
+    Wikipedia will save it under a <a href="https://en.wikipedia.org/wiki/Wikipedia:Temporary_accounts">temporary account</a> instead.</p>
+</section>
+
+<form class="start" method="get" action="{{ url_for('next_article') }}">
+  <details {% if filters %}open{% endif %}>
+    <summary>Pick a topic (optional)</summary>
+    <div class="fields">
+      <label>
+        <span>Category</span>
+        <input type="text" name="category" value="{{ filters.category }}" placeholder="e.g. American physicists"
+               autocomplete="off" spellcheck="false">
+      </label>
+      <label class="check">
+        <input type="checkbox" name="subcats" value="1" {% if filters.subcats %}checked{% endif %}>
+        Include subcategories
+      </label>
+      <label>
+        <span>WikiProject</span>
+        <input type="text" name="project" value="{{ filters.project }}" placeholder="e.g. Biography"
+               autocomplete="off" spellcheck="false">
+      </label>
+      <p class="hint">Use either or both. Subcategories can't be combined with a WikiProject.</p>
+    </div>
+  </details>
+  <button type="submit" class="btn primary big">Give me an article <span aria-hidden="true">→</span></button>
+</form>
+{% endblock %}

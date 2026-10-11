@@ -1,0 +1,21 @@
+{% extends "base.html" %}
+{% from "_macros.html" import steps, wikipedia_form, next_controls, code %}
+{% block title %}{{ page.title }} · mergeparam{% endblock %}
+{% block main %}
+{{ steps(2) }}
+
+<div class="article-head">
+  <h1><a href="{{ page.title|wikiurl }}" target="_blank" rel="noopener">{{ page.title }}</a></h1>
+  <p class="meta">Uses <code>{{ "{{" ~ target.template ~ "}}" }}</code></p>
+</div>
+
+<section class="card change narrow">
+  <h2>Ready to publish</h2>
+  <p>{% if action == "drop" %}<code>|education=</code> stays as it is and <code>|alma_mater=</code> will be removed.
+     {% else %}<code>|education=</code> will become the value below, and <code>|alma_mater=</code> will be removed.{% endif %}</p>
+  {{ code("| education = " ~ value) }}
+  <p><a href="{{ url_for('fix', title=page.title, **filters.as_args()) }}" data-back>← Go back and change it</a></p>
+  {{ wikipedia_form(form_url, fields) }}
+  {{ next_controls(page, filters) }}
+</section>
+{% endblock %}

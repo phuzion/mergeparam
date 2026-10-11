@@ -1,0 +1,42 @@
+{% macro filter_fields(filters) %}
+  {% for k, v in filters.as_args().items() %}<input type="hidden" name="{{ k }}" value="{{ v }}">{% endfor %}
+{% endmacro %}
+
+{% macro steps(current) %}
+<ol class="steps" aria-label="Progress">
+  {% for label in ["Check the change", "Publish on Wikipedia", "Next article"] %}
+  <li class="{{ 'done' if loop.index < current else ('current' if loop.index == current else '') }}"
+      {% if loop.index == current %}aria-current="step"{% endif %}>
+    <span class="num">{{ loop.index }}</span> {{ label }}
+  </li>
+  {% endfor %}
+</ol>
+{% endmacro %}
+
+{% macro wikipedia_form(form_url, fields) %}
+<form class="handoff" method="post" action="{{ form_url }}" target="_blank" data-handoff>
+  {% for name, value in fields.items() %}<input type="hidden" name="{{ name }}" value="{{ value }}">{% endfor %}
+  <label class="check">
+    <input type="checkbox" name="wpWatchthis" value="1" checked>
+    Add this article to my watchlist
+  </label>
+  <button type="submit" class="btn primary">Review &amp; publish on Wikipedia <span aria-hidden="true">↗</span></button>
+  <p class="hint">
+    This opens Wikipedia's <strong>Show changes</strong> screen in a new tab. Check the diff there,
+    then click <strong>Publish changes</strong>. Nothing is saved until you do, and you can change
+    the edit summary or the text first.
+  </p>
+</form>
+{% endmacro %}
+
+{% macro next_controls(page, filters) %}
+<div class="next" id="after-handoff">
+  <p class="after-text">Published it, or decided not to? Come back here for the next one.</p>
+  <div class="row">
+    <a class="btn next-btn" href="{{ url_for('next_article', skip=page.title, **filters.as_args()) }}">Next article <span aria-hidden="true">→</span></a>
+    <a class="btn quiet" href="{{ url_for('next_article', skip=page.title, **filters.as_args()) }}" data-skip>Skip this one</a>
+  </div>
+</div>
+{% endmacro %}
+
+{% macro code(text) %}<pre class="code"><code>{{ text }}</code></pre>{% endmacro %}

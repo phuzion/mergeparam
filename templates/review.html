@@ -1,0 +1,82 @@
+{% extends "base.html" %}
+{% from "_macros.html" import steps, wikipedia_form, next_controls, filter_fields, code %}
+{% block title %}{{ page.title }} · mergeparam{% endblock %}
+{% block main %}
+{{ steps(1) }}
+
+<div class="article-head">
+  <h1><a href="{{ page.title|wikiurl }}" target="_blank" rel="noopener">{{ page.title }}</a></h1>
+  <p class="meta">Uses <code>{{ "{{" ~ target.template ~ "}}" }}</code></p>
+</div>
+
+{% if page.edit_protection %}
+<div class="notice warn">This article is protected (<strong>{{ page.edit_protection }}</strong>). You may not be able to publish the edit. If you can't, skip it.</div>
+{% endif %}
+{% if in_use %}
+<div class="notice warn">This article is tagged as <strong>in use</strong> or <strong>under construction</strong>. Someone may be editing it right now, so consider skipping it.</div>
+{% endif %}
+{% if target.repeated_alma %}
+<div class="notice warn"><code>|alma_mater=</code> appears more than once in this infobox. Only the last one is displayed, so that's the value shown here. All copies will be removed.</div>
+{% endif %}
+{% if target.others %}
+<div class="notice">This article has {{ target.others }} more infobox{{ "es" if target.others > 1 }} with <code>|alma_mater=</code>. Once this one is fixed, the article will come up again for the next.</div>
+{% endif %}
+
+<div class="layout">
+  <section class="card change">
+    {% if suggestion.action == "rename" %}
+      <h2>Rename the parameter</h2>
+      <p>This infobox has <code>|alma_mater=</code> but no <code>|education=</code>, so the value
+        moves across <strong>unchanged</strong>.</p>
+      <div class="diff">
+        <div class="before"><span class="label">Before</span>{{ code("| alma_mater = " ~ target.alma) }}</div>
+        <div class="after"><span class="label">After</span>{{ code("| education = " ~ target.alma) }}</div>
+      </div>
+      {{ wikipedia_form(form_url, fields) }}
+      {{ next_controls(page, filters) }}
+    {% else %}
+      <h2>{{ "Remove the duplicate" if suggestion.action == "drop" else "Combine the two values" }}</h2>
+      <p>This infobox has both parameters. Check the suggested <code>|education=</code> below and edit it
+        if needed. Then continue. <code>|alma_mater=</code> will be removed.</p>
+
+      <div class="pair">
+        <div><span class="label">Current <code>|education=</code></span>{{ code(target.education) }}</div>
+        <div><span class="label">Current <code>|alma_mater=</code></span>{{ code(target.alma) }}</div>
+      </div>
+
+      {% if suggestion.duplicates %}
+      <p class="dupes"><span class="label">Already in <code>|education=</code>, left out:</span>
+        {% for d in suggestion.duplicates %}<code class="chip">{{ d }}</code>{% endfor %}
+      </p>
+      {% endif %}
+
+      <form method="post" action="{{ url_for('prepare') }}" class="merge">
+        <input type="hidden" name="title" value="{{ page.title }}">
+        <input type="hidden" name="revid" value="{{ page.revid }}">
+        {{ filter_fields(filters) }}
+        <label for="value" class="label">New <code>|education=</code></label>
+        {% if error %}<div class="notice error" role="alert">{{ error }}</div>{% endif %}
+        <textarea id="value" name="value" rows="{{ [value.count('\n') + 2, 4]|max }}" spellcheck="false"
+                  data-original="{{ suggestion.value }}">{{ value }}</textarea>
+        {% if suggestion.notes %}
+        <ul class="notes">{% for n in suggestion.notes %}<li>{{ n }}</li>{% endfor %}</ul>
+        {% endif %}
+        <p class="hint">See <a href="{{ config.MOS_URL }}" target="_blank" rel="noopener">MOS:INFOEDU</a> for what belongs in <code>|education=</code>.</p>
+        <div class="row">
+          <button type="submit" class="btn primary">Continue <span aria-hidden="true">→</span></button>
+          <button type="button" class="btn quiet" data-reset hidden>Reset to suggestion</button>
+          <a class="btn quiet" href="{{ url_for('next_article', skip=page.title, **filters.as_args()) }}">Skip this one</a>
+        </div>
+      </form>
+    {% endif %}
+    <p class="manual">Rather do it by hand? <a href="{{ page.title|wikiurl(action='edit') }}" target="_blank" rel="noopener">Edit the article on Wikipedia</a>.</p>
+  </section>
+
+  <aside class="card context">
+    <h2>Context</h2>
+    {% if context.infobox %}<div class="mw-parser-output preview-infobox">{{ context.infobox|safe }}</div>{% endif %}
+    {% if context.lead %}<div class="mw-parser-output preview-lead">{{ context.lead|safe }}</div>{% endif %}
+    {% if not context.infobox and not context.lead %}<p class="hint">Preview unavailable.</p>{% endif %}
+  </aside>
+</div>
+{% endblock %}
