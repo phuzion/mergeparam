@@ -49,7 +49,7 @@ MERGEPARAM_REPLICA_HOST=127.0.0.1 MERGEPARAM_REPLICA_CNF=/path/to/replica.my.cnf
 ```bash
 ssh <shell-user>@login.toolforge.org
 become mergeparam
-git clone https://github.com/phuzion/Mergeparam.git $HOME/www/python/src
+git clone https://github.com/phuzion/mergeparam.git $HOME/www/python/src
 toolforge webservice python3.13 shell
   python3 -m venv $HOME/www/python/venv
   source $HOME/www/python/venv/bin/activate

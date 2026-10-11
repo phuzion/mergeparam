@@ -9,7 +9,7 @@ INDEX = WIKI + "/w/index.php"
 TOOL_URL = "https://mergeparam.toolforge.org/"
 MAINTAINER = "Phuzion"
 # The Toolforge rules require a link to the published source.
-SOURCE_URL = os.environ.get("MERGEPARAM_SOURCE_URL", "https://github.com/phuzion/Mergeparam")
+SOURCE_URL = os.environ.get("MERGEPARAM_SOURCE_URL", "https://github.com/phuzion/mergeparam")
 
 # https://foundation.wikimedia.org/wiki/Policy:Wikimedia_Foundation_User-Agent_Policy
 USER_AGENT = f"mergeparam/{VERSION} ({TOOL_URL}; User:{MAINTAINER})"
