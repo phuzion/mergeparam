@@ -22,7 +22,8 @@ Consensus: [RfC: Alma mater vs Education in Infoboxes](https://en.wikipedia.org/
    so the editor sees Wikipedia's **Show changes** screen and publishes it from their own account.
    The base revision is passed along, so Wikipedia reports an edit conflict if the article changed.
 
-The tool never edits Wikipedia, has no OAuth consumer, sets no cookies and stores nothing.
+The tool never edits Wikipedia, has no OAuth consumer and stores nothing about users. Its only
+cookie holds the protection-level setting, and it is set only if an editor changes that setting.
 Edit summaries include `#mergeparam` for tracking through the
 [Hashtags tool](https://hashtags.wmcloud.org/?query=mergeparam&project=en.wikipedia.org).
 

@@ -1,16 +1,21 @@
 from __future__ import annotations
 
 import logging
-from urllib.parse import urlencode
+from urllib.parse import urlencode, urlparse
 
 from flask import Flask, abort, redirect, render_template, request, url_for
 
 from . import candidates, config, handoff, infobox, preview
 from .candidates import FilterError, Filters
 from .replica import ReplicaUnavailable
-from .wiki import Wiki, WikiError
+from .wiki import PROTECTION_LEVELS, Wiki, WikiError
 
 log = logging.getLogger(__name__)
+
+# The tool's only cookie. It holds the access level and nothing else, and it
+# is only set when the editor changes that setting from the default.
+ACCESS_COOKIE = "access"
+COOKIE_MAX_AGE = 365 * 24 * 3600
 
 CSP = "; ".join([
     "default-src 'self'",
@@ -32,9 +37,14 @@ def create_app(wiki: Wiki | None = None) -> Flask:
     def get_wiki() -> Wiki:
         return app.extensions["wiki"]
 
+    def current_access() -> str:
+        return candidates.valid_access(request.cookies.get(ACCESS_COOKIE))
+
     @app.context_processor
     def globals_():
-        return {"config": config}
+        return {"config": config, "access_levels": candidates.ACCESS_LEVELS,
+                "default_access": candidates.DEFAULT_ACCESS, "access": current_access(),
+                "protection_levels": PROTECTION_LEVELS}
 
     @app.template_filter("wikiurl")
     def wikiurl(title, **params):
@@ -73,7 +83,7 @@ def create_app(wiki: Wiki | None = None) -> Flask:
             if filters.category and not get_wiki().category_exists(filters.category):
                 return render_index(filters, error=f"There is no “Category:{filters.category}” "
                                                    "on English Wikipedia.")
-            found = candidates.find_next(get_wiki(), filters, exclude=skip)
+            found = candidates.find_next(get_wiki(), filters, current_access(), exclude=skip)
         except (FilterError, ReplicaUnavailable, WikiError) as e:
             return render_index(filters, error=str(e), status=503 if isinstance(e, WikiError) else 200)
         if not found:
@@ -169,6 +179,27 @@ def create_app(wiki: Wiki | None = None) -> Flask:
         except WikiError as e:
             return render_index(Filters(), error=str(e), status=503)
         return render_template("stats.html", remaining=remaining, per_template=per_template)
+
+    @app.get("/settings")
+    def settings():
+        return render_template("settings.html", saved=request.args.get("saved") == "1")
+
+    @app.post("/settings")
+    def save_settings():
+        # Only accept the form from this site, so other sites can't change the setting.
+        origin = request.headers.get("Origin")
+        if origin and urlparse(origin).netloc != request.host:
+            abort(400)
+        access = candidates.valid_access(request.form.get("access"))
+        resp = redirect(url_for("settings", saved=1))
+        if access == candidates.DEFAULT_ACCESS:
+            resp.delete_cookie(ACCESS_COOKIE)
+        else:
+            # Toolforge's proxy terminates TLS, so check the forwarded scheme too.
+            secure = request.is_secure or request.headers.get("X-Forwarded-Proto") == "https"
+            resp.set_cookie(ACCESS_COOKIE, access, max_age=COOKIE_MAX_AGE, secure=secure,
+                            httponly=True, samesite="Lax")
+        return resp
 
     @app.get("/about")
     def about():

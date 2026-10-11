@@ -18,6 +18,22 @@ from .infobox import normalize_title
 
 PROBE = "MergeparamProbeValue"
 
+# English Wikipedia's edit protection levels, lowest first, with the wording
+# Wikipedia uses for them. An unknown level is treated as the strictest.
+PROTECTION_LEVELS = {
+    "autoconfirmed": "semi-protected",
+    "extendedconfirmed": "extended-confirmed protected",
+    "templateeditor": "template-protected",
+    "sysop": "fully protected",
+}
+
+
+def protection_rank(level: str | None) -> int:
+    if not level:
+        return 0
+    order = list(PROTECTION_LEVELS)
+    return order.index(level) + 1 if level in order else len(order) + 1
+
 
 class WikiError(RuntimeError):
     pass
@@ -38,8 +54,9 @@ class Page:
 
     @property
     def edit_protection(self) -> str | None:
+        """The strictest edit protection (direct or cascading), if any."""
         levels = [p["level"] for p in self.protection if p.get("type") == "edit"]
-        return levels[0] if levels else None
+        return max(levels, key=protection_rank) if levels else None
 
     @property
     def mw_timestamp(self) -> str:

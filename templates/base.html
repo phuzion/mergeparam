@@ -14,6 +14,7 @@
       <a href="{{ url_for('index') }}">Start</a>
       <a href="{{ url_for('stats') }}">Progress</a>
       <a href="{{ url_for('about') }}">About</a>
+      <a href="{{ url_for('settings') }}">Settings</a>
     </nav>
   </header>
   <main>
@@ -25,7 +26,7 @@
       <a href="{{ config.RFC_URL }}">RfC on |alma_mater= vs |education=</a>.
       Maintained by <a href="https://en.wikipedia.org/wiki/User:{{ config.MAINTAINER }}">{{ config.MAINTAINER }}</a>.
       {% if config.SOURCE_URL %}<a href="{{ config.SOURCE_URL }}">Source code</a> (MIT).{% endif %}
-      This tool doesn't use cookies and doesn't store anything about you.
+      This tool doesn't store anything about you, and only uses a cookie if you change a setting.
     </p>
   </footer>
 </body>

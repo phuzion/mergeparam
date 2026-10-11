@@ -1,0 +1,31 @@
+{% extends "base.html" %}
+{% block title %}Settings · mergeparam{% endblock %}
+{% block main %}
+<section class="card narrow">
+  <h1>Settings</h1>
+  {% if saved %}<div class="notice" role="status">Saved.</div>{% endif %}
+  <p class="hint">Most people never need to change anything here.</p>
+
+  <form method="post" action="{{ url_for('save_settings') }}">
+    <label class="access">
+      <span>Protected articles I can edit</span>
+      <select name="access">
+        {% for value, label in access_levels.items() %}
+        <option value="{{ value }}" {% if value == access %}selected{% endif %}>{{ label }}{% if value == default_access %} (default){% endif %}</option>
+        {% endfor %}
+      </select>
+      <span class="hint">
+        The tool skips articles protected above this level, because Wikipedia won't let you publish
+        changes to them. Only pick a higher level if your account has it. See
+        <a href="https://en.wikipedia.org/wiki/Wikipedia:User_access_levels">user access levels</a>.
+      </span>
+    </label>
+    <button type="submit" class="btn primary">Save</button>
+  </form>
+
+  <p class="hint">
+    Changing a setting stores it in a cookie on this browser. The cookie holds only the setting,
+    and choosing the default again deletes it.
+  </p>
+</section>
+{% endblock %}

@@ -86,6 +86,12 @@ summary { cursor: pointer; font-weight: 600; }
 .fields { display: grid; gap: 0.75rem; margin-top: 0.75rem; }
 .fields label:not(.check) { display: grid; gap: 0.25rem; }
 .fields label span { font-weight: 600; font-size: 0.9rem; }
+.access { display: grid; gap: 0.25rem; margin-bottom: 1rem; }
+.access > span:first-child { font-weight: 600; font-size: 0.9rem; }
+select {
+  font: inherit; color: var(--text); background: var(--surface); max-width: 100%;
+  border: 1px solid var(--border-strong); border-radius: var(--radius); padding: 0.45rem 0.5rem; min-height: 44px;
+}
 input[type="text"], textarea {
   width: 100%; font: inherit; color: var(--text); background: var(--surface);
   border: 1px solid var(--border-strong); border-radius: var(--radius); padding: 0.5rem 0.6rem;
@@ -134,6 +140,7 @@ label.check { display: flex; align-items: center; gap: 0.5rem; }
 @media (max-width: 860px) { .layout { grid-template-columns: minmax(0, 1fr); } }
 .card { background: var(--surface); border: 1px solid var(--border); border-radius: 8px; padding: 1.25rem; }
 .card.narrow { max-width: 46rem; }
+main > .card:first-child { margin-top: 1rem; }
 .label { display: block; font-weight: 600; font-size: 0.85rem; color: var(--muted); margin-bottom: 0.25rem; }
 pre.code {
   margin: 0 0 0.75rem; padding: 0.6rem 0.75rem; background: var(--code-bg); border-radius: var(--radius);

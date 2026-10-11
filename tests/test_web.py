@@ -14,9 +14,10 @@ MERGE_TEXT = ("{{Infobox academic\n| name = B\n| education = [[Stanford Universi
               "| alma_mater = [[Harvard]]\n}}\nText.")
 
 
-def make_page(title, text, revid=100):
+def make_page(title, text, revid=100, protection=None):
+    protection = [{"type": "edit", "level": protection, "expiry": "infinity"}] if protection else []
     return Page(title=title, pageid=1, revid=revid, timestamp="2026-10-01T12:34:56Z",
-                text=text, protection=[])
+                text=text, protection=protection)
 
 
 class FakeWiki:
@@ -226,3 +227,90 @@ def test_preview_drops_unsafe_urls():
     assert "javascript:" not in out["infobox"]
     assert 'src="https://upload.wikimedia.org/a.png"' in out["infobox"]
     assert "https://upload.wikimedia.org/b.png 2x" in out["infobox"]
+
+
+# -------------------------------------------------------------- protection
+
+def test_strictest_protection_wins():
+    page = make_page("A", "x")
+    page.protection = [{"type": "move", "level": "sysop"},
+                       {"type": "edit", "level": "autoconfirmed"},
+                       {"type": "edit", "level": "extendedconfirmed", "source": "Cascade"}]
+    assert page.edit_protection == "extendedconfirmed"
+
+
+@pytest.mark.parametrize("access,level,ok", [
+    ("any", None, True),
+    ("any", "autoconfirmed", False),
+    ("autoconfirmed", "autoconfirmed", True),
+    ("autoconfirmed", "extendedconfirmed", False),
+    ("extendedconfirmed", "extendedconfirmed", True),
+    ("extendedconfirmed", "sysop", False),
+    ("sysop", "sysop", True),
+    ("sysop", "some-new-level", False),  # unknown levels count as strictest
+])
+def test_can_edit(access, level, ok):
+    assert candidates.can_edit(make_page("A", "x", protection=level), access) is ok
+
+
+def test_valid_access():
+    assert candidates.valid_access(None) == "autoconfirmed"
+    assert candidates.valid_access("bogus") == "autoconfirmed"
+    assert candidates.valid_access("sysop") == "sysop"
+
+
+def test_next_skips_pages_above_access_level(client_for):
+    client = client_for(make_page("Locked", RENAME_TEXT, protection="extendedconfirmed"),
+                        make_page("Open", RENAME_TEXT, revid=101))
+    assert "title=Open" in client.get("/next").headers["Location"]
+    client.set_cookie("access", "extendedconfirmed")
+    assert "title=Locked" in client.get("/next?skip=Open").headers["Location"]
+
+
+def test_access_is_not_read_from_the_url(client_for):
+    client = client_for(make_page("Locked", RENAME_TEXT, protection="sysop"))
+    assert client.get("/next?access=sysop").status_code == 200  # nothing found
+
+
+def test_settings_saves_cookie_and_default_deletes_it(client_for):
+    client = client_for()
+    r = client.post("/settings", data={"access": "extendedconfirmed"})
+    assert r.status_code == 302 and "saved=1" in r.headers["Location"]
+    cookie = r.headers["Set-Cookie"]
+    assert cookie.startswith("access=extendedconfirmed;")
+    assert "HttpOnly" in cookie and "SameSite=Lax" in cookie
+    body = client.get("/settings?saved=1").get_data(as_text=True)
+    assert "Saved." in body
+    assert '<option value="extendedconfirmed" selected>' in body
+    assert "Extended confirmed" in client.get("/").get_data(as_text=True)  # start page says so
+
+    r = client.post("/settings", data={"access": "autoconfirmed"})
+    assert "access=;" in r.headers["Set-Cookie"] and "Max-Age=0" in r.headers["Set-Cookie"]
+
+
+def test_settings_cookie_secure_behind_toolforge_proxy(client_for):
+    r = client_for().post("/settings", data={"access": "sysop"},
+                          headers={"X-Forwarded-Proto": "https"})
+    assert "Secure" in r.headers["Set-Cookie"]
+
+
+def test_settings_rejects_cross_site_post(client_for):
+    r = client_for().post("/settings", data={"access": "sysop"},
+                          headers={"Origin": "https://evil.example"})
+    assert r.status_code == 400
+    assert "Set-Cookie" not in r.headers
+
+
+def test_no_cookie_by_default(client_for):
+    client = client_for(make_page("Jane Doe", RENAME_TEXT))
+    for url in ["/", "/next", "/fix?title=Jane+Doe", "/settings", "/about"]:
+        assert "Set-Cookie" not in client.get(url).headers, url
+
+
+def test_review_names_protection_level(client_for):
+    client = client_for(make_page("Locked", RENAME_TEXT, protection="extendedconfirmed"))
+    assert "extended-confirmed protected" in client.get("/fix?title=Locked").get_data(as_text=True)
+
+
+def test_settings_link_in_header(client_for):
+    assert 'href="/settings">Settings</a>' in client_for().get("/").get_data(as_text=True)

@@ -10,7 +10,7 @@
 </div>
 
 {% if page.edit_protection %}
-<div class="notice warn">This article is protected (<strong>{{ page.edit_protection }}</strong>). You may not be able to publish the edit. If you can't, skip it.</div>
+<div class="notice warn">This article is <strong>{{ protection_levels.get(page.edit_protection, "protected") }}</strong>. If your account can't edit it, Wikipedia won't let you publish, so skip it.</div>
 {% endif %}
 {% if in_use %}
 <div class="notice warn">This article is tagged as <strong>in use</strong> or <strong>under construction</strong>. Someone may be editing it right now, so consider skipping it.</div>
