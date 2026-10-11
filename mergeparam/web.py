@@ -12,9 +12,10 @@ from .wiki import PROTECTION_LEVELS, Wiki, WikiError
 
 log = logging.getLogger(__name__)
 
-# The tool's only cookie. It holds the access level and nothing else, and it
-# is only set when the editor changes that setting from the default.
+# The tool's only cookies: one per setting, each holding just that setting,
+# and each set only when the editor changes it from the default.
 ACCESS_COOKIE = "access"
+WATCH_COOKIE = "watch"      # "0" when the watchlist box should start unticked
 COOKIE_MAX_AGE = 365 * 24 * 3600
 
 CSP = "; ".join([
@@ -40,11 +41,14 @@ def create_app(wiki: Wiki | None = None) -> Flask:
     def current_access() -> str:
         return candidates.valid_access(request.cookies.get(ACCESS_COOKIE))
 
+    def current_watch() -> bool:
+        return request.cookies.get(WATCH_COOKIE) != "0"
+
     @app.context_processor
     def globals_():
         return {"config": config, "access_levels": candidates.ACCESS_LEVELS,
                 "default_access": candidates.DEFAULT_ACCESS, "access": current_access(),
-                "protection_levels": PROTECTION_LEVELS}
+                "watch": current_watch(), "protection_levels": PROTECTION_LEVELS}
 
     @app.template_filter("wikiurl")
     def wikiurl(title, **params):
@@ -190,16 +194,23 @@ def create_app(wiki: Wiki | None = None) -> Flask:
         origin = request.headers.get("Origin")
         if origin and urlparse(origin).netloc != request.host:
             abort(400)
-        access = candidates.valid_access(request.form.get("access"))
         resp = redirect(url_for("settings", saved=1))
-        if access == candidates.DEFAULT_ACCESS:
-            resp.delete_cookie(ACCESS_COOKIE)
-        else:
-            # Toolforge's proxy terminates TLS, so check the forwarded scheme too.
-            secure = request.is_secure or request.headers.get("X-Forwarded-Proto") == "https"
-            resp.set_cookie(ACCESS_COOKIE, access, max_age=COOKIE_MAX_AGE, secure=secure,
-                            httponly=True, samesite="Lax")
+        access = candidates.valid_access(request.form.get("access"))
+        remember(resp, ACCESS_COOKIE, None if access == candidates.DEFAULT_ACCESS else access)
+        # An unticked checkbox isn't sent at all, so absence means "off".
+        remember(resp, WATCH_COOKIE, None if request.form.get("watch") == "1" else "0")
         return resp
+
+    def remember(resp, name: str, value: str | None):
+        """Store a non-default setting, or delete its cookie when it's back to the default."""
+        if value is None:
+            if name in request.cookies:
+                resp.delete_cookie(name)
+            return
+        # Toolforge's proxy terminates TLS, so check the forwarded scheme too.
+        secure = request.is_secure or request.headers.get("X-Forwarded-Proto") == "https"
+        resp.set_cookie(name, value, max_age=COOKIE_MAX_AGE, secure=secure,
+                        httponly=True, samesite="Lax")
 
     @app.get("/about")
     def about():

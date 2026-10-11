@@ -32,7 +32,7 @@
         <div class="before"><span class="label">Before</span>{{ code("| alma_mater = " ~ target.alma) }}</div>
         <div class="after"><span class="label">After</span>{{ code("| education = " ~ target.alma) }}</div>
       </div>
-      {{ wikipedia_form(form_url, fields) }}
+      {{ wikipedia_form(form_url, fields, watch) }}
       {{ next_controls(page, filters) }}
     {% else %}
       <h2>{{ "Remove the duplicate" if suggestion.action == "drop" else "Combine the two values" }}</h2>

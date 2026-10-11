@@ -87,6 +87,8 @@ summary { cursor: pointer; font-weight: 600; }
 .fields label:not(.check) { display: grid; gap: 0.25rem; }
 .fields label span { font-weight: 600; font-size: 0.9rem; }
 .access { display: grid; gap: 0.25rem; margin-bottom: 1rem; }
+label.check.setting { font-weight: 600; font-size: 0.9rem; }
+label.check.setting + .hint { margin: 0.25rem 0 1rem; }
 .access > span:first-child { font-weight: 600; font-size: 0.9rem; }
 select {
   font: inherit; color: var(--text); background: var(--surface); max-width: 100%;

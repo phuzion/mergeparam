@@ -20,12 +20,17 @@
         <a href="https://en.wikipedia.org/wiki/Wikipedia:User_access_levels">user access levels</a>.
       </span>
     </label>
+    <label class="check setting">
+      <input type="checkbox" name="watch" value="1" {% if watch %}checked{% endif %}>
+      Tick “Add this article to my watchlist” by default
+    </label>
+    <p class="hint">You can still change it for each edit, and on Wikipedia's Show changes screen.</p>
     <button type="submit" class="btn primary">Save</button>
   </form>
 
   <p class="hint">
-    Changing a setting stores it in a cookie on this browser. The cookie holds only the setting,
-    and choosing the default again deletes it.
+    Changing a setting stores it in a cookie on this browser. Each cookie holds only that setting,
+    and going back to the default deletes it.
   </p>
 </section>
 {% endblock %}

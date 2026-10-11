@@ -274,8 +274,9 @@ def test_access_is_not_read_from_the_url(client_for):
 
 def test_settings_saves_cookie_and_default_deletes_it(client_for):
     client = client_for()
-    r = client.post("/settings", data={"access": "extendedconfirmed"})
+    r = client.post("/settings", data={"access": "extendedconfirmed", "watch": "1"})
     assert r.status_code == 302 and "saved=1" in r.headers["Location"]
+    assert len(r.headers.getlist("Set-Cookie")) == 1
     cookie = r.headers["Set-Cookie"]
     assert cookie.startswith("access=extendedconfirmed;")
     assert "HttpOnly" in cookie and "SameSite=Lax" in cookie
@@ -284,12 +285,12 @@ def test_settings_saves_cookie_and_default_deletes_it(client_for):
     assert '<option value="extendedconfirmed" selected>' in body
     assert "Extended confirmed" in client.get("/").get_data(as_text=True)  # start page says so
 
-    r = client.post("/settings", data={"access": "autoconfirmed"})
+    r = client.post("/settings", data={"access": "autoconfirmed", "watch": "1"})
     assert "access=;" in r.headers["Set-Cookie"] and "Max-Age=0" in r.headers["Set-Cookie"]
 
 
 def test_settings_cookie_secure_behind_toolforge_proxy(client_for):
-    r = client_for().post("/settings", data={"access": "sysop"},
+    r = client_for().post("/settings", data={"access": "sysop", "watch": "1"},
                           headers={"X-Forwarded-Proto": "https"})
     assert "Secure" in r.headers["Set-Cookie"]
 
@@ -314,3 +315,33 @@ def test_review_names_protection_level(client_for):
 
 def test_settings_link_in_header(client_for):
     assert 'href="/settings">Settings</a>' in client_for().get("/").get_data(as_text=True)
+
+
+def test_saving_defaults_sets_no_cookies(client_for):
+    r = client_for().post("/settings", data={"access": "autoconfirmed", "watch": "1"})
+    assert "Set-Cookie" not in r.headers
+
+
+def watch_box(body):
+    return re.search(r'<input type="checkbox" name="wpWatchthis" value="1" ?(checked)?>', body).group(1)
+
+
+def test_watchlist_box_ticked_by_default(client_for):
+    client = client_for(make_page("Jane Doe", RENAME_TEXT))
+    assert watch_box(client.get("/fix?title=Jane+Doe").get_data(as_text=True)) == "checked"
+    assert 'name="watch" value="1" checked' in client.get("/settings").get_data(as_text=True)
+
+
+def test_watchlist_setting_off_and_back_on(client_for):
+    client = client_for(make_page("John Roe", MERGE_TEXT))
+    r = client.post("/settings", data={"access": "autoconfirmed"})  # box unticked
+    assert r.headers.getlist("Set-Cookie")[0].startswith("watch=0;")
+    assert 'name="watch" value="1" >' in client.get("/settings").get_data(as_text=True)
+    body = client.post("/prepare", data={"title": "John Roe", "revid": "100",
+                                         "value": "[[A]]"}).get_data(as_text=True)
+    assert watch_box(body) is None  # unticked on the publish step too
+
+    r = client.post("/settings", data={"access": "autoconfirmed", "watch": "1"})
+    assert r.headers["Set-Cookie"].startswith("watch=;") and "Max-Age=0" in r.headers["Set-Cookie"]
+    assert watch_box(client.post("/prepare", data={"title": "John Roe", "revid": "100",
+                                                   "value": "[[A]]"}).get_data(as_text=True)) == "checked"

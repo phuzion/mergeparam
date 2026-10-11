@@ -13,11 +13,11 @@
 </ol>
 {% endmacro %}
 
-{% macro wikipedia_form(form_url, fields) %}
+{% macro wikipedia_form(form_url, fields, watch) %}
 <form class="handoff" method="post" action="{{ form_url }}" target="_blank" data-handoff>
   {% for name, value in fields.items() %}<input type="hidden" name="{{ name }}" value="{{ value }}">{% endfor %}
   <label class="check">
-    <input type="checkbox" name="wpWatchthis" value="1" checked>
+    <input type="checkbox" name="wpWatchthis" value="1" {% if watch %}checked{% endif %}>
     Add this article to my watchlist
   </label>
   <button type="submit" class="btn primary">Review &amp; publish on Wikipedia <span aria-hidden="true">↗</span></button>
