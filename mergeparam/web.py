@@ -4,6 +4,7 @@ import logging
 from urllib.parse import urlencode, urlparse
 
 from flask import Flask, abort, redirect, render_template, request, url_for
+from werkzeug.exceptions import HTTPException
 
 from . import candidates, config, handoff, infobox, preview
 from .candidates import FilterError, Filters
@@ -19,6 +20,23 @@ WATCH_COOKIE = "watch"      # "0" when the watchlist box should start unticked
 AUTO_COOKIE = "auto"        # "1" to move on automatically after publishing
 KIND_COOKIE = "kind"        # which kinds of fix to show, when not all of them
 COOKIE_MAX_AGE = 365 * 24 * 3600
+
+# Heading and explanation for each error page.
+ERRORS = {
+    400: ("That request didn't make sense",
+          "Something in the link or form was missing or out of date. Starting again usually fixes it."),
+    403: ("That isn't allowed here",
+          "This tool only accepts that from its own pages. If a link or form on another site brought "
+          "you here, start from the tool instead."),
+    404: ("Page not found",
+          "There's nothing at this address. The link may be mistyped or out of date."),
+    405: ("This page can't be opened that way",
+          "It's a step in the middle of the tool, so it can't be reloaded, bookmarked or opened "
+          "directly. Go back to the article and carry on from there."),
+    500: ("Something went wrong on our side",
+          "The tool hit an unexpected error. Please try again. If it keeps happening, let the "
+          "maintainer know."),
+}
 
 CSP = "; ".join([
     "default-src 'self'",
@@ -125,7 +143,9 @@ def create_app(wiki: Wiki | None = None) -> Flask:
         except WikiError as e:
             return render_index(filters, error=str(e), status=503)
         if not page:
-            abort(404)
+            return render_error(404, "Article not found",
+                                f"There's no article called “{title}” on English Wikipedia. "
+                                "It may have been renamed, merged or deleted.")
         if not target:
             return render_template("nothing.html", page=page, filters=filters,
                                    has_alma=infobox.find_target(page.text) is not None)
@@ -229,7 +249,7 @@ def create_app(wiki: Wiki | None = None) -> Flask:
         # Only accept the form from this site, so other sites can't change the setting.
         origin = request.headers.get("Origin")
         if origin and urlparse(origin).netloc != request.host:
-            abort(400)
+            abort(403)
         resp = redirect(url_for("settings", saved=1))
         access = candidates.valid_access(request.form.get("access"))
         remember(resp, ACCESS_COOKIE, None if access == candidates.DEFAULT_ACCESS else access)
@@ -255,13 +275,16 @@ def create_app(wiki: Wiki | None = None) -> Flask:
     def about():
         return render_template("about.html")
 
-    @app.errorhandler(400)
-    @app.errorhandler(404)
-    def client_error(e):
-        return render_template("error.html", error=e), e.code
+    def render_error(code: int, heading: str = "", message: str = "", headers=None):
+        default_heading, default_message = ERRORS.get(
+            code, ("Something went wrong", "Please try again from the start page."))
+        return render_template("error.html", code=code, heading=heading or default_heading,
+                               message=message or default_message), code, headers or {}
 
-    @app.errorhandler(500)
-    def server_error(e):
-        return render_template("error.html", error=e), 500
+    @app.errorhandler(HTTPException)
+    def http_error(e):
+        # Keep the Allow header on 405s, as HTTP requires.
+        headers = {k: v for k, v in e.get_headers() if k.lower() == "allow"}
+        return render_error(e.code, headers=headers)
 
     return app

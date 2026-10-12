@@ -1,9 +1,21 @@
 {% extends "base.html" %}
-{% block title %}Error · mergeparam{% endblock %}
+{% block title %}{{ heading }} · mergeparam{% endblock %}
 {% block main %}
-<section class="card narrow">
-  <h1>{{ error.code }} {{ error.name }}</h1>
-  <p>{% if error.code == 404 %}That article doesn't exist on English Wikipedia.{% else %}Something went wrong. Please try again.{% endif %}</p>
-  <a class="btn primary" href="{{ url_for('index') }}">Back to the start</a>
+<section class="error-page">
+  <p class="error-code" aria-hidden="true">{{ code }}</p>
+  <h1>{{ heading }}</h1>
+  <p class="lede">{{ message }}</p>
+  <div class="row">
+    <a class="btn primary" href="{{ url_for('index') }}">Back to the start</a>
+    {% if code in (404, 405) %}
+    <a class="btn" href="{{ url_for('next_article') }}">Give me an article <span aria-hidden="true">→</span></a>
+    {% endif %}
+    <a class="btn quiet" href="{{ url_for('index') }}" data-history-back hidden>Go back</a>
+  </div>
+  {% if code >= 500 %}
+  <p class="hint">Still stuck? Leave a note at
+    <a href="https://en.wikipedia.org/wiki/User_talk:{{ config.MAINTAINER }}">User talk:{{ config.MAINTAINER }}</a>.</p>
+  {% endif %}
+  <p class="hint error-status">Error {{ code }}</p>
 </section>
 {% endblock %}

@@ -31,6 +31,16 @@ document.addEventListener("DOMContentLoaded", () => {
     sync();
   }
 
+  // Error pages: offer "Go back" when there's somewhere on this site to go back to.
+  const historyBack = document.querySelector("[data-history-back]");
+  if (historyBack && history.length > 1 && document.referrer.startsWith(location.origin)) {
+    historyBack.hidden = false;
+    historyBack.addEventListener("click", (e) => {
+      e.preventDefault();
+      history.back();
+    });
+  }
+
   // "Go back and change it" keeps the user's edits by going back in history.
   const back = document.querySelector("[data-back]");
   if (back && history.length > 1) {

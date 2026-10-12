@@ -298,7 +298,7 @@ def test_settings_cookie_secure_behind_toolforge_proxy(client_for):
 def test_settings_rejects_cross_site_post(client_for):
     r = client_for().post("/settings", data={"access": "sysop"},
                           headers={"Origin": "https://evil.example"})
-    assert r.status_code == 400
+    assert r.status_code == 403
     assert "Set-Cookie" not in r.headers
 
 
@@ -446,3 +446,61 @@ def test_settings_saves_kind(client_for):
     r = client.post("/settings", data={"access": "autoconfirmed", "watch": "1", "kind": "all"})
     assert r.headers["Set-Cookie"].startswith("kind=;")
     assert "Showing:" not in client.get("/").get_data(as_text=True)
+
+
+# ------------------------------------------------------------- error pages
+
+def test_unknown_url_is_themed_404(client_for):
+    r = client_for().get("/no-such-page")
+    body = html.unescape(r.get_data(as_text=True))
+    assert r.status_code == 404
+    assert "Page not found" in body
+    assert "<title>Page not found · mergeparam</title>" in body
+    assert 'class="brand"' in body and 'href="/settings">Settings</a>' in body  # site chrome
+    assert "English Wikipedia" not in body  # not the missing-article message
+
+
+def test_missing_article_404_names_it(client_for):
+    r = client_for().get("/fix?title=Nope")
+    body = html.unescape(r.get_data(as_text=True))
+    assert r.status_code == 404
+    assert "Article not found" in body and "“Nope”" in body
+
+
+def test_cross_site_settings_post_is_themed_403(client_for):
+    r = client_for().post("/settings", data={"access": "sysop"}, headers={"Origin": "https://evil.example"})
+    assert r.status_code == 403
+    assert "That isn't allowed here" in html.unescape(r.get_data(as_text=True))
+
+
+def test_wrong_method_is_themed_405_with_allow_header(client_for):
+    r = client_for().get("/prepare")
+    assert r.status_code == 405
+    assert r.headers["Allow"] == "OPTIONS, POST"
+    body = html.unescape(r.get_data(as_text=True))
+    assert "can't be opened that way" in body
+    assert "Give me an article" in body
+
+
+def test_bad_request_is_themed_400(client_for):
+    r = client_for().post("/prepare", data={"title": "X", "revid": "nope"})
+    assert r.status_code == 400
+    assert "didn't make sense" in html.unescape(r.get_data(as_text=True))
+
+
+def test_unexpected_error_is_themed_500():
+    class Broken(FakeWiki):
+        def latest(self, titles):
+            raise RuntimeError("boom")
+
+    app = create_app(Broken([]))  # not app.testing, so the error handler runs
+    r = app.test_client().get("/fix?title=X")
+    body = html.unescape(r.get_data(as_text=True))
+    assert r.status_code == 500
+    assert "Something went wrong on our side" in body
+    assert "User talk:Phuzion" in body
+    assert "boom" not in body  # no internals leaked
+
+
+def test_redirects_are_not_turned_into_error_pages(client_for):
+    assert client_for().get("/fix").status_code == 302

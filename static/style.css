@@ -171,6 +171,19 @@ pre.code {
 .stats .num { text-align: right; font-variant-numeric: tabular-nums; }
 .prose h2 { margin-top: 1.5rem; }
 
+/* Error pages */
+.error-page { max-width: 36rem; margin: 3rem auto 1rem; text-align: center; }
+.error-page .error-code {
+  margin: 0; font-size: clamp(4.5rem, 18vw, 7.5rem); font-weight: 800; line-height: 1;
+  letter-spacing: -0.04em; font-variant-numeric: tabular-nums;
+  color: var(--accent); opacity: 0.25;
+}
+.error-page h1 { margin-top: 0.75rem; }
+.error-page .lede { margin: 0 auto 1.5rem; }
+.error-page .row { justify-content: center; }
+.error-page .hint { margin-top: 1.25rem; }
+.error-page .error-status { margin-top: 2rem; font-size: 0.8rem; }
+
 /* Context preview. Wikipedia's own styles aren't loaded, so this is a minimal
    stand-in. It stays light in dark mode because infoboxes often hard-code colors. */
 .context .mw-parser-output {
