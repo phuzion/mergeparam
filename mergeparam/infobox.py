@@ -185,12 +185,60 @@ def parse_list(value: str) -> ValueList:
     return ValueList("single", [str(code).strip()], code)
 
 
+def looks_comma_separated(value: str) -> bool:
+    """Does a value read like a list written with commas, e.g. "[[A]], [[B]], [[C]]"?
+
+    Only commas outside links, templates, tags and parentheses count, so
+    "[[University of California, Berkeley]]" and "Harvard (BA, 1990)" don't.
+    Two links separated by a comma, or three or more comma-separated parts,
+    is treated as a list; a single comma between plain words ("Rutherford
+    College, Newcastle") usually isn't.
+    """
+    code = mwparserfromhell.parse(value)
+    commas = depth = 0
+    for node in code.nodes:
+        if isinstance(node, Text):
+            for ch in str(node):
+                if ch == "(":
+                    depth += 1
+                elif ch == ")":
+                    depth = max(depth - 1, 0)
+                elif ch == "," and depth == 0:
+                    commas += 1
+    if not commas:
+        return False
+    links = len(code.filter_wikilinks(recursive=False))
+    return links >= 2 or commas >= 2
+
+
 # ------------------------------------------------------------ duplicate checks
 
 def link_targets(text: str) -> list[str]:
     code = mwparserfromhell.parse(text)
     return [normalize_title(str(l.title)) for l in code.filter_wikilinks(recursive=True)
             if str(l.title).strip() and not str(l.title).strip().startswith("#")]
+
+
+def _link_texts(text: str) -> list[str]:
+    """Display text of each link, e.g. "UC Berkeley" for [[University of California, Berkeley|UC Berkeley]]."""
+    code = mwparserfromhell.parse(text)
+    return [str(l.text if l.text is not None else l.title).strip()
+            for l in code.filter_wikilinks(recursive=True)]
+
+
+def _unlinked_title(item: str) -> str | None:
+    """An entry that is just an unlinked name, e.g. "Brooklyn College", as a title."""
+    if link_targets(item) or re.search(r"[\[\]{}<>|]", item):
+        return None
+    title = normalize_title(bare(item))
+    return title if 4 <= len(title) <= 120 else None
+
+
+def lookup_titles(alma: str, education: str) -> list[str]:
+    """Titles worth resolving redirects for before checking for duplicates."""
+    titles = link_targets(alma) + link_targets(education)
+    titles += [t for t in map(_unlinked_title, parse_list(alma).items) if t]
+    return titles
 
 
 def _plain(text: str) -> str:
@@ -213,12 +261,39 @@ def is_duplicate(item: str, existing: list[str], redirects: dict[str, str]) -> b
     plain = _plain(item)
     if len(plain) < 4:
         return False
+
+    # An unlinked name that matches an article linked from |education= (or that
+    # link's display text): "University of California, Berkeley" vs
+    # "[[University of California, Berkeley]], [[Brooklyn College]]".
+    title = _unlinked_title(item)
+    if title:
+        linked = {t.lower() for t in existing_links}
+        labels = {_plain(t) for e in existing for t in _link_texts(e)}
+        if resolve(title).lower() in linked or plain in labels:
+            return True
+
     for e in existing:
         other = _plain(e)
         # "Harvard University" vs "Harvard University (BA)"
         if other == plain or other.startswith(plain + " ("):
             return True
+        if _named_within(plain, other):
+            return True
     return False
+
+
+def _named_within(name: str, text: str) -> bool:
+    """Is `name` one of the things listed in plain `text`?
+
+    "ahmadu bello university" is in "b.sc., m.sc., ph.d., ahmadu bello university",
+    but "university of california" is not in "university of california, berkeley":
+    the name must not run on past a comma, which may be part of a longer name.
+    """
+    if len(name) < 8 or len(name.split()) < 2:
+        return False
+    before = r"(?:^|[,;(]|\bfrom|\bat)\s*"
+    after = r"\s*(?:$|[;()])"
+    return re.search(before + re.escape(name) + after, text) is not None
 
 
 # --------------------------------------------------------------- suggestions
@@ -296,15 +371,26 @@ def suggest(alma: str, education: str | None, redirects: dict[str, str] | None =
                      "so |alma_mater= can simply be removed.")
         return Suggestion("drop", education.strip(), [], dupes, notes)
 
+    comma_lists = [f"|{name}=" for name, raw, kind in (
+        (NEW_PARAM, education, edu_list.kind), (OLD_PARAM, alma, alma_list.kind))
+        if kind == "single" and looks_comma_separated(raw)]
+
     if edu_list.kind == "single":
         style = alma_list if alma_list.kind not in ("single", "empty") else ValueList("default")
         value = _build_list(style, edu_list.items + added)
-        if style.kind == "default":
+        if style.kind == "default" and not comma_lists:
             notes.append(f"Neither value was a list, so the entries were combined with "
                          f"{{{{{DEFAULT_LIST_TEMPLATE}}}}}.")
     else:
         value = _append(edu_list, added)
 
+    if comma_lists:
+        one = len(comma_lists) == 1
+        notes.append(f"{' and '.join(comma_lists)} {'looks' if one else 'look'} like "
+                     f"{'a list' if one else 'lists'} written with commas, so the tool kept "
+                     f"{'it' if one else 'each'} as a single entry. If "
+                     f"{'it names' if one else 'they name'} several schools, you may want to put "
+                     "each one on its own line.")
     notes.append("New entries were added at the end. Check the order "
                  "(education is usually listed chronologically).")
     notes.append("If |education= lists degrees and |alma_mater= lists where they were earned, "

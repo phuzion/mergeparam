@@ -249,3 +249,112 @@ def test_round_trip_suggest_then_apply():
     assert ib.find_target(out) is None
     assert "{{Plainlist|\n* [[Stanford University]] ([[Bachelor of Science|BS]])\n" \
            "* [[Massachusetts Institute of Technology|MIT]]\n}}" in out
+
+
+# Unlinked |alma_mater= names matched against links in |education=
+
+SEIDMAN_EDU = ("[[University of California, Berkeley]], [[University of California, Davis]], "
+               "[[Brooklyn College]]")
+
+
+def test_unlinked_alma_matches_linked_education_naomi_seidman():
+    s = ib.suggest("University of California, Berkeley", SEIDMAN_EDU)
+    assert s.action == "drop"
+    assert s.value == SEIDMAN_EDU
+
+
+@pytest.mark.parametrize("item,existing,redirects,dup", [
+    # case differences beyond the first letter don't matter for this check
+    ("University of california, Berkeley", [SEIDMAN_EDU], {}, True),
+    # matches a link's display text
+    ("UC Berkeley", ["[[University of California, Berkeley|UC Berkeley]] (PhD)"], {}, True),
+    # an unlinked name that redirects to a linked article
+    ("UC Berkeley", [SEIDMAN_EDU], {"UC Berkeley": "University of California, Berkeley"}, True),
+    # a prefix of a linked name is a different institution
+    ("University of California", [SEIDMAN_EDU], {}, False),
+    # not linked anywhere in education
+    ("Stanford University", [SEIDMAN_EDU], {}, False),
+])
+def test_unlinked_alma_against_education_links(item, existing, redirects, dup):
+    assert ib.is_duplicate(item, existing, redirects) is dup
+
+
+def test_lookup_titles_includes_unlinked_alma_names():
+    titles = ib.lookup_titles("UC Berkeley<br />[[Yale University]]", SEIDMAN_EDU)
+    assert "UC Berkeley" in titles and "Yale University" in titles
+    assert "Brooklyn College" in titles
+    assert ib.lookup_titles("{{ubl|Yale University|Brown University}}", "") == ["Yale University", "Brown University"]
+
+
+@pytest.mark.parametrize("value,flag", [
+    ("[[University of California, Berkeley]], [[University of California, Davis]], [[Brooklyn College]]", True),
+    ("[[Kingswood School]], [[Bath, Somerset]]", True),           # may just be a place; the note says "may"
+    ("BA, MA, PhD", True),
+    ("B.S. in mathematics, M.S. in computer science, PhD", True),
+    ("[[University of California, Berkeley]]", False),             # comma inside the link
+    ("[[Harvard University]] (BA, 1990)", False),                  # comma inside parentheses
+    ("Rutherford College, Newcastle", False),                      # one comma, no links
+    ("[[Harvard University]]", False),
+    ("{{ubl|[[A]], [[B]]}}", False),                               # inside a template
+])
+def test_looks_comma_separated(value, flag):
+    assert ib.looks_comma_separated(value) is flag
+
+
+def test_merge_notes_comma_separated_education():
+    s = ib.suggest("[[Yale University]]", "[[Brooklyn College]], [[University of California, Davis]]")
+    assert s.action == "merge"
+    assert any(n.startswith("|education= looks like a list written with commas") for n in s.notes)
+    assert not any(n.startswith("Neither value was a list") for n in s.notes)  # folded into the comma note
+    # the suggested text itself is unchanged by the note
+    assert s.value == "{{Plainlist|\n* [[Brooklyn College]], [[University of California, Davis]]\n* [[Yale University]]\n}}"
+
+
+def test_merge_notes_comma_separated_alma_mater():
+    s = ib.suggest("[[Rice University]], [[University of Utah]]", "[[Juris Doctor|J.D.]]")
+    assert any(n.startswith("|alma_mater= looks like a list") for n in s.notes)
+
+
+def test_both_comma_lists_get_one_note():
+    s = ib.suggest("[[Rice University]], [[University of Utah]]", "[[Juris Doctor|J.D.]], [[Doctor of Philosophy|Ph.D.]]")
+    comma_notes = [n for n in s.notes if "commas" in n]
+    assert comma_notes == ["|education= and |alma_mater= look like lists written with commas, so the tool "
+                           "kept each as a single entry. If they name several schools, you may want to put "
+                           "each one on its own line."]
+
+
+def test_no_comma_note_for_ordinary_values_or_drops():
+    assert not any("commas" in n for n in ib.suggest("[[Yale University]]", "[[Harvard University]] (BA, 1990)").notes)
+    # a drop leaves |education= untouched, so there's nothing to restructure
+    assert ib.suggest("University of California, Berkeley",
+                      "[[University of California, Berkeley]], [[Brooklyn College]]").notes == [
+        "Every |alma_mater= entry already appears in |education=, so |alma_mater= can simply be removed."]
+
+
+# Unlinked names on both sides
+
+@pytest.mark.parametrize("item,edu,dup", [
+    ("Ahmadu Bello University", "B.Sc., M.Sc., Ph.D., Ahmadu Bello University", True),   # Abdullahi Mahadi
+    ("Ahmadu Bello University", "BA, Ahmadu Bello University; MA, University of Lagos", True),
+    ("Ahmadu Bello University", "PhD from Ahmadu Bello University", True),
+    ("Ahmadu Bello University", "B.Sc. (Ahmadu Bello University)", True),
+    # never across a comma that may continue the name
+    ("University of California", "BA, University of California, Berkeley", False),
+    ("University of California", "University of California, Berkeley", False),
+    # never part of a longer name
+    ("University of New York", "PhD, State University of New York", False),
+    ("University of New York", "PhD, University of New York at Buffalo", False),
+    # too short or a single word: too easy to match by accident
+    ("UCL", "BSc, UCL", False),
+    ("Harvard", "AB, Harvard", False),
+    # followed by a comma: missed on purpose (it could be "…, Zaria" or "…, 2001")
+    ("Ahmadu Bello University", "B.Sc., Ahmadu Bello University, Zaria", False),
+])
+def test_unlinked_alma_named_in_unlinked_education(item, edu, dup):
+    assert ib.is_duplicate(item, [edu], {}) is dup
+
+
+def test_abdullahi_mahadi_becomes_a_drop():
+    edu = "B.Sc., M.Sc., Ph.D., Ahmadu Bello University"
+    s = ib.suggest("Ahmadu Bello University", edu)
+    assert s.action == "drop" and s.value == edu

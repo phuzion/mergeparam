@@ -45,6 +45,8 @@
 }
 
 * { box-sizing: border-box; }
+/* Author styles like .btn { display: inline-flex } beat the browser's own [hidden] rule. */
+[hidden] { display: none !important; }
 html { -webkit-text-size-adjust: 100%; }
 body {
   margin: 0;
@@ -163,7 +165,6 @@ pre.code {
 .js.handed-off .next .after-text { display: block; font-weight: 600; }
 .js.handed-off .next .next-btn { background: var(--accent); border-color: var(--accent); color: var(--accent-text); }
 .auto-status { display: flex; align-items: center; gap: 0.5rem; flex-wrap: wrap; margin-bottom: 0.5rem; }
-.auto-status[hidden] { display: none; }
 .auto-status p { margin: 0; font-weight: 600; }
 .manual { margin: 1rem 0 0; font-size: 0.875rem; color: var(--muted); }
 .stats { width: 100%; border-collapse: collapse; margin: 0.5rem 0; }

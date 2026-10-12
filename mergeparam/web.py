@@ -186,8 +186,8 @@ def create_app(wiki: Wiki | None = None) -> Flask:
         redirects = {}
         try:
             if target.education and infobox.bare(target.education):
-                links = infobox.link_targets(target.alma) + infobox.link_targets(target.education)
-                redirects = wiki.resolve_redirects(links)
+                redirects = wiki.resolve_redirects(
+                    infobox.lookup_titles(target.alma, target.education))
             context = preview.context(wiki.lead_html(page.revid))
         except WikiError:
             log.warning("context preview failed for %s", page.title, exc_info=True)

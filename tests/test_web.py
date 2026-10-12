@@ -513,3 +513,11 @@ def test_prefilled_summary_does_not_trigger_blank_summary_prompt():
     _, fields = handoff.edit_form(make_page("A", "x"), "y", "merge")
     assert fields["wpAutoSummary"] == hashlib.md5(b"").hexdigest() == "d41d8cd98f00b204e9800998ecf8427e"
     assert hashlib.md5(fields["wpSummary"].encode()).hexdigest() != fields["wpAutoSummary"]
+
+
+def test_hidden_attribute_beats_button_display_styles():
+    # .btn sets display: inline-flex, which would otherwise show [hidden] buttons
+    # ("Reset to suggestion", "Stay here", "Go back") all the time.
+    from pathlib import Path
+    css = (Path(__file__).parent.parent / "static" / "style.css").read_text(encoding="utf-8")
+    assert "[hidden] { display: none !important; }" in css
