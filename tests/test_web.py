@@ -476,7 +476,7 @@ def test_cross_site_settings_post_is_themed_403(client_for):
 def test_wrong_method_is_themed_405_with_allow_header(client_for):
     r = client_for().get("/prepare")
     assert r.status_code == 405
-    assert r.headers["Allow"] == "OPTIONS, POST"
+    assert set(r.headers["Allow"].split(", ")) == {"OPTIONS", "POST"}  # order varies
     body = html.unescape(r.get_data(as_text=True))
     assert "can't be opened that way" in body
     assert "Give me an article" in body
@@ -504,3 +504,12 @@ def test_unexpected_error_is_themed_500():
 
 def test_redirects_are_not_turned_into_error_pages(client_for):
     assert client_for().get("/fix").status_code == 302
+
+
+def test_prefilled_summary_does_not_trigger_blank_summary_prompt():
+    # MediaWiki prompts when md5(summary) equals wpAutoSummary. Declaring the
+    # starting summary blank means only a blanked summary prompts.
+    import hashlib
+    _, fields = handoff.edit_form(make_page("A", "x"), "y", "merge")
+    assert fields["wpAutoSummary"] == hashlib.md5(b"").hexdigest() == "d41d8cd98f00b204e9800998ecf8427e"
+    assert hashlib.md5(fields["wpSummary"].encode()).hexdigest() != fields["wpAutoSummary"]

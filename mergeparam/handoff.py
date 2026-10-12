@@ -10,6 +10,7 @@ edit conflict if the article changed after it was loaded here.
 
 from __future__ import annotations
 
+import hashlib
 from datetime import datetime, timezone
 from urllib.parse import urlencode
 
@@ -44,6 +45,13 @@ def edit_form(page: Page, new_text: str, action: str,
         "format": "text/x-wiki",
         # MediaWiki treats a form without this as truncated and refuses it.
         "wpUltimateParam": "1",
+        # The md5 of the summary the form "started with". Without it MediaWiki
+        # takes our prefilled summary as the starting one, so editors with
+        # "Prompt me when entering a blank edit summary" are told it's missing
+        # and must click Publish twice. md5("") is what MediaWiki itself uses
+        # for a summary preset with &summary= (T19416): only a blanked summary
+        # triggers the prompt.
+        "wpAutoSummary": hashlib.md5(b"").hexdigest(),
     }
     # wpWatchthis is a checkbox on the page itself, so the editor chooses.
     return url, fields
