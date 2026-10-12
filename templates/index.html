@@ -50,6 +50,9 @@
       <p class="hint">Use either or both. Subcategories can't be combined with a WikiProject.</p>
     </div>
   </details>
+  {% if kind != "all" %}
+  <p class="hint">Showing: <strong>{{ kinds[kind]|lower }}</strong>. <a href="{{ url_for('settings') }}">Change</a></p>
+  {% endif %}
   {% if access != default_access %}
   <p class="hint">Protected articles: showing those an editor with <strong>{{ access_levels[access] }}</strong>
     access can edit. <a href="{{ url_for('settings') }}">Change</a></p>

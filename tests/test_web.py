@@ -402,3 +402,47 @@ def test_check_one_of_two_infoboxes_fixed(client_for):
 def test_check_bad_requests(client_for, query):
     page = make_page("Jane Doe", RENAME_TEXT, revid=101)
     assert client_for(page).get("/check?" + query).status_code == 400
+
+
+# ------------------------------------------------------------- kind filter
+
+@pytest.mark.parametrize("text,rename", [
+    (RENAME_TEXT, True),
+    ("{{Infobox person|alma_mater=[[A]]|education=}}", True),
+    ("{{Infobox person|alma_mater=[[A]]|education=<!-- degrees -->}}", True),
+    (MERGE_TEXT, False),
+])
+def test_is_rename(text, rename):
+    from mergeparam.infobox import find_target
+    assert candidates.is_rename(find_target(text)) is rename
+
+
+def test_valid_kind():
+    assert candidates.valid_kind(None) == "all"
+    assert candidates.valid_kind("bogus") == "all"
+    assert candidates.valid_kind("merge") == "merge"
+
+
+@pytest.mark.parametrize("kind,expected", [("merge", "John+Roe"), ("rename", "Jane+Doe")])
+def test_next_respects_kind(client_for, kind, expected):
+    client = client_for(make_page("Jane Doe", RENAME_TEXT), make_page("John Roe", MERGE_TEXT, revid=101))
+    client.set_cookie("kind", kind)
+    for _ in range(3):  # FakeWiki returns pages in a fixed order, so this is deterministic
+        assert f"title={expected}" in client.get("/next").headers["Location"]
+
+
+def test_next_kind_with_nothing_matching(client_for):
+    client = client_for(make_page("Jane Doe", RENAME_TEXT))
+    client.set_cookie("kind", "merge")
+    assert "Couldn" in client.get("/next").get_data(as_text=True)
+
+
+def test_settings_saves_kind(client_for):
+    client = client_for()
+    r = client.post("/settings", data={"access": "autoconfirmed", "watch": "1", "kind": "rename"})
+    assert r.headers["Set-Cookie"].startswith("kind=rename;")
+    assert '<option value="rename" selected>' in client.get("/settings").get_data(as_text=True)
+    assert "only simple renames" in client.get("/").get_data(as_text=True)
+    r = client.post("/settings", data={"access": "autoconfirmed", "watch": "1", "kind": "all"})
+    assert r.headers["Set-Cookie"].startswith("kind=;")
+    assert "Showing:" not in client.get("/").get_data(as_text=True)

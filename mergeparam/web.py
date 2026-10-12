@@ -17,6 +17,7 @@ log = logging.getLogger(__name__)
 ACCESS_COOKIE = "access"
 WATCH_COOKIE = "watch"      # "0" when the watchlist box should start unticked
 AUTO_COOKIE = "auto"        # "1" to move on automatically after publishing
+KIND_COOKIE = "kind"        # which kinds of fix to show, when not all of them
 COOKIE_MAX_AGE = 365 * 24 * 3600
 
 CSP = "; ".join([
@@ -52,11 +53,15 @@ def create_app(wiki: Wiki | None = None) -> Flask:
     def current_auto() -> bool:
         return request.cookies.get(AUTO_COOKIE) == "1"
 
+    def current_kind() -> str:
+        return candidates.valid_kind(request.cookies.get(KIND_COOKIE))
+
     @app.context_processor
     def globals_():
         return {"config": config, "access_levels": candidates.ACCESS_LEVELS,
                 "default_access": candidates.DEFAULT_ACCESS, "access": current_access(),
                 "watch": current_watch(), "auto": current_auto(),
+                "kinds": candidates.KINDS, "kind": current_kind(),
                 "protection_levels": PROTECTION_LEVELS}
 
     @app.template_filter("wikiurl")
@@ -96,7 +101,8 @@ def create_app(wiki: Wiki | None = None) -> Flask:
             if filters.category and not get_wiki().category_exists(filters.category):
                 return render_index(filters, error=f"There is no “Category:{filters.category}” "
                                                    "on English Wikipedia.")
-            found = candidates.find_next(get_wiki(), filters, current_access(), exclude=skip)
+            found = candidates.find_next(get_wiki(), filters, current_access(), exclude=skip,
+                                         kind=current_kind())
         except (FilterError, ReplicaUnavailable, WikiError) as e:
             return render_index(filters, error=str(e), status=503 if isinstance(e, WikiError) else 200)
         if not found:
@@ -230,6 +236,8 @@ def create_app(wiki: Wiki | None = None) -> Flask:
         # An unticked checkbox isn't sent at all, so absence means "off".
         remember(resp, WATCH_COOKIE, None if request.form.get("watch") == "1" else "0")
         remember(resp, AUTO_COOKIE, "1" if request.form.get("auto") == "1" else None)
+        kind = candidates.valid_kind(request.form.get("kind"))
+        remember(resp, KIND_COOKIE, None if kind == candidates.DEFAULT_KIND else kind)
         return resp
 
     def remember(resp, name: str, value: str | None):

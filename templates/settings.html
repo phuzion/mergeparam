@@ -8,6 +8,18 @@
 
   <form method="post" action="{{ url_for('save_settings') }}">
     <label class="access">
+      <span>Show me</span>
+      <select name="kind">
+        {% for value, label in kinds.items() %}
+        <option value="{{ value }}" {% if value == kind %}selected{% endif %}>{{ label }}{% if value == "all" %} (default){% endif %}</option>
+        {% endfor %}
+      </select>
+      <span class="hint">
+        A simple rename is an infobox with only <code>|alma_mater=</code>, where the value just moves
+        to <code>|education=</code>. When both are filled in, you decide how to combine them.
+      </span>
+    </label>
+    <label class="access">
       <span>Protected articles I can edit</span>
       <select name="access">
         {% for value, label in access_levels.items() %}
