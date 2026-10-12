@@ -23,8 +23,13 @@ Consensus: [RfC: Alma mater vs Education in Infoboxes](https://en.wikipedia.org/
    The base revision is passed along, so Wikipedia reports an edit conflict if the article changed.
 
 The tool never edits Wikipedia, has no OAuth consumer and stores nothing about users. Its only
-cookies hold the editor's settings (protection level, watchlist default), one cookie per
-setting, and each is set only if the editor changes that setting from the default.
+cookies hold the editor's settings (protection level, watchlist default, auto-advance), one
+cookie per setting, and each is set only if the editor changes that setting from the default.
+
+With auto-advance on (off by default), the browser polls Wikipedia's public API every five
+seconds for the article's latest revision ID, for up to 15 minutes. When it changes, it asks the
+tool once (`/check`) whether that revision removed the `|alma_mater=`, and if so counts down and
+loads the next article.
 Edit summaries include `#mergeparam` for tracking through the
 [Hashtags tool](https://hashtags.wmcloud.org/?query=mergeparam&project=en.wikipedia.org).
 

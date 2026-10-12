@@ -13,8 +13,11 @@
 </ol>
 {% endmacro %}
 
-{% macro wikipedia_form(form_url, fields, watch) %}
-<form class="handoff" method="post" action="{{ form_url }}" target="_blank" data-handoff>
+{% macro wikipedia_form(form_url, fields, watch, page, target, auto) %}
+{# A named target reuses one Wikipedia tab for every article instead of opening a new one each time. #}
+<form class="handoff" method="post" action="{{ form_url }}" target="mergeparam-wikipedia" data-handoff
+  {% if auto %}data-auto data-api="{{ config.API }}" data-check="{{ url_for('check') }}"
+  data-title="{{ page.title }}" data-revid="{{ page.revid }}" data-before="{{ target.others + 1 }}"{% endif %}>
   {% for name, value in fields.items() %}<input type="hidden" name="{{ name }}" value="{{ value }}">{% endfor %}
   <label class="check">
     <input type="checkbox" name="wpWatchthis" value="1" {% if watch %}checked{% endif %}>
@@ -22,9 +25,10 @@
   </label>
   <button type="submit" class="btn primary">Review &amp; publish on Wikipedia <span aria-hidden="true">↗</span></button>
   <p class="hint">
-    This opens Wikipedia's <strong>Show changes</strong> screen in a new tab. Check the diff there,
+    This opens Wikipedia's <strong>Show changes</strong> screen in another tab. Check the diff there,
     then click <strong>Publish changes</strong>. Nothing is saved until you do, and you can change
-    the edit summary or the text first.
+    the edit summary or the text first.{% if auto %} Once it's published, this page moves on to the
+    next article by itself.{% endif %}
   </p>
 </form>
 {% endmacro %}
@@ -32,6 +36,10 @@
 {% macro next_controls(page, filters) %}
 <div class="next" id="after-handoff">
   <p class="after-text">Published it, or decided not to? Come back here for the next one.</p>
+  <div class="auto-status" hidden>
+    <p role="status" aria-live="polite"></p>
+    <button type="button" class="btn quiet" data-stay hidden>Stay here</button>
+  </div>
   <div class="row">
     <a class="btn next-btn" href="{{ url_for('next_article', skip=page.title, **filters.as_args()) }}">Next article <span aria-hidden="true">→</span></a>
     <a class="btn quiet" href="{{ url_for('next_article', skip=page.title, **filters.as_args()) }}" data-skip>Skip this one</a>

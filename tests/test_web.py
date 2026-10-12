@@ -345,3 +345,60 @@ def test_watchlist_setting_off_and_back_on(client_for):
     assert r.headers["Set-Cookie"].startswith("watch=;") and "Max-Age=0" in r.headers["Set-Cookie"]
     assert watch_box(client.post("/prepare", data={"title": "John Roe", "revid": "100",
                                                    "value": "[[A]]"}).get_data(as_text=True)) == "checked"
+
+
+# ------------------------------------------------------------ auto-advance
+
+def test_auto_advance_off_by_default(client_for):
+    client = client_for(make_page("Jane Doe", RENAME_TEXT))
+    body = client.get("/fix?title=Jane+Doe").get_data(as_text=True)
+    assert 'target="mergeparam-wikipedia"' in body
+    assert "data-auto" not in body
+    assert 'name="auto" value="1" >' in client.get("/settings").get_data(as_text=True)
+
+
+def test_auto_advance_setting_adds_poll_data(client_for):
+    client = client_for(make_page("Jane Doe", RENAME_TEXT + "\n{{Infobox academic|alma_mater=[[X]]}}"))
+    r = client.post("/settings", data={"access": "autoconfirmed", "watch": "1", "auto": "1"})
+    assert r.headers["Set-Cookie"].startswith("auto=1;")
+    body = client.get("/fix?title=Jane+Doe").get_data(as_text=True)
+    assert "data-auto" in body
+    assert 'data-revid="100"' in body
+    assert 'data-before="2"' in body  # two infoboxes still need fixing
+    assert 'data-check="/check"' in body
+    assert 'data-api="https://en.wikipedia.org/w/api.php"' in body
+    assert "moves on to the" in body
+
+    r = client.post("/settings", data={"access": "autoconfirmed", "watch": "1"})
+    assert r.headers["Set-Cookie"].startswith("auto=;")
+
+
+def test_csp_allows_wikipedia_api_only(client_for):
+    csp = client_for().get("/").headers["Content-Security-Policy"]
+    assert "connect-src 'self' https://en.wikipedia.org" in csp
+
+
+def test_check_detects_fix(client_for):
+    fixed = make_page("Jane Doe", RENAME_TEXT.replace("alma_mater", "education"), revid=101)
+    client = client_for(fixed)
+    r = client.get("/check?title=Jane+Doe&revid=101&before=1")
+    assert r.get_json() == {"done": True}
+    assert r.headers["Cache-Control"] == "no-store"
+
+
+def test_check_unrelated_edit_is_not_done(client_for):
+    other = make_page("Jane Doe", RENAME_TEXT + "\nMore text.", revid=101)
+    assert client_for(other).get("/check?title=Jane+Doe&revid=101&before=1").get_json() == {"done": False}
+
+
+def test_check_one_of_two_infoboxes_fixed(client_for):
+    text = "{{Infobox person|education=[[A]]}}\n{{Infobox academic|alma_mater=[[X]]}}"
+    page = make_page("Two", text, revid=101)
+    assert client_for(page).get("/check?title=Two&revid=101&before=2").get_json() == {"done": True}
+
+
+@pytest.mark.parametrize("query", ["title=Jane+Doe&revid=x&before=1", "title=Other&revid=101&before=1",
+                                   "title=Jane+Doe&revid=101"])
+def test_check_bad_requests(client_for, query):
+    page = make_page("Jane Doe", RENAME_TEXT, revid=101)
+    assert client_for(page).get("/check?" + query).status_code == 400

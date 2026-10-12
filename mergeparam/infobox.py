@@ -99,6 +99,11 @@ def find_target(text: str) -> Target | None:
     )
 
 
+def count_targets(text: str) -> int:
+    """How many infoboxes on the page still have a non-empty |alma_mater=."""
+    return len(_candidates(mwparserfromhell.parse(text)))
+
+
 def in_use_tagged(text: str) -> bool:
     code = mwparserfromhell.parse(text)
     return any(template_name(t) in IN_USE_TEMPLATES for t in code.filter_templates(recursive=False))

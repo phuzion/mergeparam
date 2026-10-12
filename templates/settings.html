@@ -25,6 +25,13 @@
       Tick “Add this article to my watchlist” by default
     </label>
     <p class="hint">You can still change it for each edit, and on Wikipedia's Show changes screen.</p>
+    <label class="check setting">
+      <input type="checkbox" name="auto" value="1" {% if auto %}checked{% endif %}>
+      Move on to the next article automatically after I publish
+    </label>
+    <p class="hint">After you open an edit on Wikipedia, this page checks every few seconds whether
+      it was published, then counts down and loads the next article. You can stop the countdown.
+      Your browser checks Wikipedia's public API directly, without logging in.</p>
     <button type="submit" class="btn primary">Save</button>
   </form>
 

@@ -16,6 +16,7 @@ log = logging.getLogger(__name__)
 # and each set only when the editor changes it from the default.
 ACCESS_COOKIE = "access"
 WATCH_COOKIE = "watch"      # "0" when the watchlist box should start unticked
+AUTO_COOKIE = "auto"        # "1" to move on automatically after publishing
 COOKIE_MAX_AGE = 365 * 24 * 3600
 
 CSP = "; ".join([
@@ -25,6 +26,8 @@ CSP = "; ".join([
     # TemplateStyles in the preview arrive as inline <style> blocks.
     "style-src 'self' 'unsafe-inline'",
     "script-src 'self'",
+    # Auto-advance asks Wikipedia's API whether the article has a new revision.
+    "connect-src 'self' https://en.wikipedia.org",
     "form-action 'self' https://en.wikipedia.org",
     "frame-ancestors 'none'",
     "base-uri 'none'",
@@ -34,6 +37,8 @@ CSP = "; ".join([
 def create_app(wiki: Wiki | None = None) -> Flask:
     app = Flask(__name__, template_folder="../templates", static_folder="../static")
     app.extensions["wiki"] = wiki or Wiki()
+    # A global rather than context, so imported macros can use it too.
+    app.jinja_env.globals["config"] = config
 
     def get_wiki() -> Wiki:
         return app.extensions["wiki"]
@@ -44,11 +49,15 @@ def create_app(wiki: Wiki | None = None) -> Flask:
     def current_watch() -> bool:
         return request.cookies.get(WATCH_COOKIE) != "0"
 
+    def current_auto() -> bool:
+        return request.cookies.get(AUTO_COOKIE) == "1"
+
     @app.context_processor
     def globals_():
         return {"config": config, "access_levels": candidates.ACCESS_LEVELS,
                 "default_access": candidates.DEFAULT_ACCESS, "access": current_access(),
-                "watch": current_watch(), "protection_levels": PROTECTION_LEVELS}
+                "watch": current_watch(), "auto": current_auto(),
+                "protection_levels": PROTECTION_LEVELS}
 
     @app.template_filter("wikiurl")
     def wikiurl(title, **params):
@@ -184,6 +193,27 @@ def create_app(wiki: Wiki | None = None) -> Flask:
             return render_index(Filters(), error=str(e), status=503)
         return render_template("stats.html", remaining=remaining, per_template=per_template)
 
+    @app.get("/check")
+    def check():
+        """Called once by auto-advance when the article gets a new revision.
+
+        Answers whether that revision fixed the infobox, i.e. has fewer
+        infoboxes with |alma_mater= than the page had when it was reviewed.
+        """
+        try:
+            revid = int(request.args.get("revid", ""))
+            before = int(request.args.get("before", ""))
+        except ValueError:
+            abort(400)
+        try:
+            page = get_wiki().revision(revid)
+        except WikiError:
+            return {"done": False, "error": "busy"}, 503, {"Cache-Control": "no-store"}
+        if not page or page.title != request.args.get("title"):
+            abort(400)
+        done = infobox.count_targets(page.text) < before
+        return {"done": done}, 200, {"Cache-Control": "no-store"}
+
     @app.get("/settings")
     def settings():
         return render_template("settings.html", saved=request.args.get("saved") == "1")
@@ -199,6 +229,7 @@ def create_app(wiki: Wiki | None = None) -> Flask:
         remember(resp, ACCESS_COOKIE, None if access == candidates.DEFAULT_ACCESS else access)
         # An unticked checkbox isn't sent at all, so absence means "off".
         remember(resp, WATCH_COOKIE, None if request.form.get("watch") == "1" else "0")
+        remember(resp, AUTO_COOKIE, "1" if request.form.get("auto") == "1" else None)
         return resp
 
     def remember(resp, name: str, value: str | None):
