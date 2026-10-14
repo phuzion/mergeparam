@@ -19,7 +19,11 @@ ACCESS_COOKIE = "access"
 WATCH_COOKIE = "watch"      # "0" when the watchlist box should start unticked
 AUTO_COOKIE = "auto"        # "1" to move on automatically after publishing
 KIND_COOKIE = "kind"        # which kinds of fix to show, when not all of them
+THEME_COOKIE = "theme"      # "light" or "dark"; no cookie means follow the device
 COOKIE_MAX_AGE = 365 * 24 * 3600
+
+# The theme toggle cycles through these, in this order.
+THEMES = {"system": "Same as your device", "light": "Light", "dark": "Dark"}
 
 # Heading and explanation for each error page.
 ERRORS = {
@@ -74,13 +78,30 @@ def create_app(wiki: Wiki | None = None) -> Flask:
     def current_kind() -> str:
         return candidates.valid_kind(request.cookies.get(KIND_COOKIE))
 
+    def current_theme() -> str:
+        theme = request.cookies.get(THEME_COOKIE)
+        return theme if theme in ("light", "dark") else "system"
+
     @app.context_processor
     def globals_():
         return {"config": config, "access_levels": candidates.ACCESS_LEVELS,
                 "default_access": candidates.DEFAULT_ACCESS, "access": current_access(),
                 "watch": current_watch(), "auto": current_auto(),
                 "kinds": candidates.KINDS, "kind": current_kind(),
+                "themes": THEMES, "theme": current_theme(), "next_theme": next_theme(current_theme()),
                 "protection_levels": PROTECTION_LEVELS}
+
+    def next_theme(theme: str) -> str:
+        order = list(THEMES)
+        return order[(order.index(theme) + 1) % len(order)]
+
+    def same_site() -> bool:
+        """Only accept settings changes from this site, so other sites can't change them."""
+        origin = request.headers.get("Origin")
+        return not origin or urlparse(origin).netloc == request.host
+
+    def remember_theme(resp, theme: str):
+        remember(resp, THEME_COOKIE, theme if theme in ("light", "dark") else None)
 
     @app.template_filter("wikiurl")
     def wikiurl(title, **params):
@@ -246,9 +267,7 @@ def create_app(wiki: Wiki | None = None) -> Flask:
 
     @app.post("/settings")
     def save_settings():
-        # Only accept the form from this site, so other sites can't change the setting.
-        origin = request.headers.get("Origin")
-        if origin and urlparse(origin).netloc != request.host:
+        if not same_site():
             abort(403)
         resp = redirect(url_for("settings", saved=1))
         access = candidates.valid_access(request.form.get("access"))
@@ -258,6 +277,27 @@ def create_app(wiki: Wiki | None = None) -> Flask:
         remember(resp, AUTO_COOKIE, "1" if request.form.get("auto") == "1" else None)
         kind = candidates.valid_kind(request.form.get("kind"))
         remember(resp, KIND_COOKIE, None if kind == candidates.DEFAULT_KIND else kind)
+        if request.form.get("theme") in THEMES:
+            remember_theme(resp, request.form["theme"])
+        return resp
+
+    @app.post("/theme")
+    def save_theme():
+        """The header's theme toggle. Scripts get 204; without JavaScript, it's a form post."""
+        if not same_site():
+            abort(403)
+        theme = request.form.get("theme")
+        if theme not in THEMES:
+            abort(400)
+        if request.headers.get("X-Requested-With") == "fetch":
+            resp = app.response_class(status=204)
+        else:
+            back = request.form.get("next", "")
+            # Only return to a page on this site.
+            if not back.startswith("/") or back.startswith("//") or "\\" in back:
+                back = url_for("index")
+            resp = redirect(back)
+        remember_theme(resp, theme)
         return resp
 
     def remember(resp, name: str, value: str | None):

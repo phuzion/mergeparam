@@ -21,8 +21,10 @@
   --mono: ui-monospace, SFMono-Regular, Menlo, Consolas, "Liberation Mono", monospace;
   color-scheme: light;
 }
+/* Dark theme: when chosen with the theme toggle, or when the device prefers dark
+   and the toggle is on "system" (no data-theme). The two blocks must match. */
 @media (prefers-color-scheme: dark) {
-  :root {
+  :root:not([data-theme="light"]) {
     --bg: #101418;
     --surface: #1b1f24;
     --text: #eaecf0;
@@ -42,6 +44,26 @@
     --code-bg: #24292f;
     color-scheme: dark;
   }
+}
+:root[data-theme="dark"] {
+  --bg: #101418;
+  --surface: #1b1f24;
+  --text: #eaecf0;
+  --muted: #a2a9b1;
+  --border: #3a3f45;
+  --border-strong: #54595d;
+  --accent: #6d8af0;
+  --accent-hover: #8fa6f3;
+  --accent-text: #101418;
+  --accent-subtle: #1f2a44;
+  --warn-bg: #3a2f12;
+  --warn-border: #b98500;
+  --error-bg: #3d1f1d;
+  --error-border: #e06a63;
+  --del-bg: #3d1f1d;
+  --add-bg: #17332a;
+  --code-bg: #24292f;
+  color-scheme: dark;
 }
 
 * { box-sizing: border-box; }
@@ -71,6 +93,15 @@ header.site {
 .brand span { color: var(--accent); }
 header nav { display: flex; gap: 1.25rem; }
 header nav a { text-decoration: none; }
+header nav { align-items: center; }
+.theme-toggle { display: inline-flex; margin: 0; }
+.theme-toggle button {
+  display: inline-grid; place-items: center; width: 36px; height: 36px; padding: 0; cursor: pointer;
+  border: 1px solid var(--border); border-radius: 50%; background: var(--surface); color: var(--text);
+}
+.theme-toggle button:hover { border-color: var(--accent); color: var(--accent); }
+.theme-toggle button:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.theme-toggle svg { width: 18px; height: 18px; }
 main { padding-bottom: 2.5rem; }
 footer.site { color: var(--muted); font-size: 0.85rem; border-top: 1px solid var(--border); padding-top: 1rem; padding-bottom: 2rem; }
 

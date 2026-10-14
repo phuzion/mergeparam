@@ -521,3 +521,71 @@ def test_hidden_attribute_beats_button_display_styles():
     from pathlib import Path
     css = (Path(__file__).parent.parent / "static" / "style.css").read_text(encoding="utf-8")
     assert "[hidden] { display: none !important; }" in css
+
+
+# ------------------------------------------------------------------- theme
+
+def test_theme_follows_device_by_default(client_for):
+    body = client_for().get("/").get_data(as_text=True)
+    assert '<html lang="en">' in body  # no data-theme: CSS follows prefers-color-scheme
+    assert 'name="theme" value="light"' in body  # the toggle's next step
+    assert "Theme: Same as your device. Click for light." in body
+
+
+@pytest.mark.parametrize("theme,attr,next_theme", [("light", 'data-theme="light"', "dark"),
+                                                  ("dark", 'data-theme="dark"', "system")])
+def test_theme_cookie_is_rendered_server_side(client_for, theme, attr, next_theme):
+    client = client_for()
+    client.set_cookie("theme", theme)
+    body = client.get("/about").get_data(as_text=True)
+    assert f'<html lang="en" {attr}>' in body
+    assert f'name="theme" value="{next_theme}"' in body
+
+
+def test_theme_toggle_with_javascript_saves_without_reloading(client_for):
+    client = client_for()
+    r = client.post("/theme", data={"theme": "dark"}, headers={"X-Requested-With": "fetch"})
+    assert r.status_code == 204
+    cookie = r.headers["Set-Cookie"]
+    assert cookie.startswith("theme=dark;") and "HttpOnly" in cookie and "SameSite=Lax" in cookie
+    r = client.post("/theme", data={"theme": "system"}, headers={"X-Requested-With": "fetch"})
+    assert r.headers["Set-Cookie"].startswith("theme=;") and "Max-Age=0" in r.headers["Set-Cookie"]
+
+
+def test_theme_toggle_without_javascript_returns_to_the_page(client_for):
+    client = client_for()
+    r = client.post("/theme", data={"theme": "light", "next": "/stats?x=1"})
+    assert r.status_code == 302 and r.headers["Location"].endswith("/stats?x=1")
+
+
+@pytest.mark.parametrize("bad", ["https://evil.example/", "//evil.example/", r"/\evil.example", "stats"])
+def test_theme_toggle_never_redirects_off_site(client_for, bad):
+    r = client_for().post("/theme", data={"theme": "light", "next": bad})
+    assert r.headers["Location"] == "/"
+
+
+def test_theme_toggle_rejects_bad_values_and_other_sites(client_for):
+    client = client_for()
+    assert client.post("/theme", data={"theme": "purple"}).status_code == 400
+    r = client.post("/theme", data={"theme": "dark"}, headers={"Origin": "https://evil.example"})
+    assert r.status_code == 403 and "Set-Cookie" not in r.headers
+
+
+def test_theme_on_settings_page(client_for):
+    client = client_for()
+    r = client.post("/settings", data={"access": "autoconfirmed", "watch": "1", "theme": "dark"})
+    assert r.headers["Set-Cookie"].startswith("theme=dark;")
+    assert '<option value="dark" selected>' in client.get("/settings").get_data(as_text=True)
+
+
+def test_dark_rules_cover_both_the_toggle_and_the_device_setting():
+    from pathlib import Path
+    css = (Path(__file__).parent.parent / "static" / "style.css").read_text(encoding="utf-8")
+    assert ':root:not([data-theme="light"])' in css
+    assert ':root[data-theme="dark"]' in css
+    # The two dark blocks must define the same colours.
+    import re
+    blocks = re.findall(r':root(?::not\(\[data-theme="light"\]\)|\[data-theme="dark"\]) \{(.*?)\}', css, re.S)
+    assert len(blocks) == 2
+    norm = [sorted(l.strip() for l in b.strip().splitlines()) for b in blocks]
+    assert norm[0] == norm[1]

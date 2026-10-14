@@ -24,7 +24,7 @@ Consensus: [RfC: Alma mater vs Education in Infoboxes](https://en.wikipedia.org/
 
 The tool never edits Wikipedia, has no OAuth consumer and stores nothing about users. Its only
 cookies hold the editor's settings (which kinds of fix to show, protection level, watchlist default,
-auto-advance), one
+auto-advance, light/dark theme), one
 cookie per setting, and each is set only if the editor changes that setting from the default.
 
 With auto-advance on (off by default), the browser polls Wikipedia's public API every five

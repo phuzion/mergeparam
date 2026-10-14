@@ -41,6 +41,31 @@ document.addEventListener("DOMContentLoaded", () => {
     });
   }
 
+  // Theme toggle: switch straight away, then save the choice in the background.
+  const toggle = document.querySelector("form[data-theme-toggle]");
+  if (toggle) toggle.addEventListener("submit", (e) => {
+    e.preventDefault();
+    const order = ["system", "light", "dark"];
+    const labels = { system: "Same as your device", light: "Light", dark: "Dark" };
+    const input = toggle.querySelector('input[name="theme"]');
+    const button = toggle.querySelector("button");
+    const theme = input.value;
+    if (theme === "system") document.documentElement.removeAttribute("data-theme");
+    else document.documentElement.setAttribute("data-theme", theme);
+    // SVG elements have no .hidden property, so set the attribute itself.
+    for (const icon of toggle.querySelectorAll("[data-icon]")) {
+      icon.toggleAttribute("hidden", icon.dataset.icon !== theme);
+    }
+    const next = order[(order.indexOf(theme) + 1) % order.length];
+    input.value = next;
+    button.dataset.themeCurrent = theme;
+    button.title = button.ariaLabel = `Theme: ${labels[theme]}. Click for ${labels[next].toLowerCase()}.`;
+    fetch(toggle.action, {
+      method: "POST", body: new URLSearchParams({ theme }),
+      headers: { "X-Requested-With": "fetch" }, credentials: "same-origin",
+    }).catch(() => {});  // if saving fails, the theme still changes for this page
+  });
+
   // "Go back and change it" keeps the user's edits by going back in history.
   const back = document.querySelector("[data-back]");
   if (back && history.length > 1) {

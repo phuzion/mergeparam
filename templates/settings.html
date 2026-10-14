@@ -32,6 +32,15 @@
         <a href="https://en.wikipedia.org/wiki/Wikipedia:User_access_levels">user access levels</a>.
       </span>
     </label>
+    <label class="access">
+      <span>Theme</span>
+      <select name="theme">
+        {% for value, label in themes.items() %}
+        <option value="{{ value }}" {% if value == theme %}selected{% endif %}>{{ label }}{% if value == "system" %} (default){% endif %}</option>
+        {% endfor %}
+      </select>
+      <span class="hint">The button at the top right of every page cycles through these too.</span>
+    </label>
     <label class="check setting">
       <input type="checkbox" name="watch" value="1" {% if watch %}checked{% endif %}>
       Tick “Add this article to my watchlist” by default
