@@ -10,7 +10,8 @@ Consensus: [RfC: Alma mater vs Education in Infoboxes](https://en.wikipedia.org/
 ## How it works
 
 1. A random article is picked from the tracking categories of `{{Infobox person}}`,
-   `{{Infobox officeholder}}`, `{{Infobox academic}}` and `{{Infobox Christian leader}}`,
+   `{{Infobox officeholder}}`, `{{Infobox academic}}`, `{{Infobox Christian leader}}` and
+   `{{Infobox college coach}}`,
    using CirrusSearch (`insource:"alma_mater" incategory:…`, `srsort=random`).
    A topic filter can narrow this by category (optionally with subcategories) or by WikiProject.
 2. The article's wikitext is parsed with mwparserfromhell. The tool checks that the infobox
