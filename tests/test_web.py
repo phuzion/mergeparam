@@ -589,3 +589,91 @@ def test_dark_rules_cover_both_the_toggle_and_the_device_setting():
     assert len(blocks) == 2
     norm = [sorted(l.strip() for l in b.strip().splitlines()) for b in blocks]
     assert norm[0] == norm[1]
+
+
+# ------------------------------------------------------------ infobox choice
+
+ALL_INFOBOXES = list(candidates.INFOBOXES)
+
+
+def test_infobox_keys():
+    assert candidates.INFOBOXES["college_coach"] == "Infobox college coach"
+    assert candidates.INFOBOXES["christian_leader"] == "Infobox Christian leader"
+
+
+@pytest.mark.parametrize("value,expected", [
+    (None, ALL_INFOBOXES),
+    ("", ALL_INFOBOXES),
+    ("bogus", ALL_INFOBOXES),
+    ("college_coach", ["college_coach"]),
+    ("college_coach.bogus.academic", ["academic", "college_coach"]),  # in the configured order
+])
+def test_valid_infoboxes(value, expected):
+    assert candidates.valid_infoboxes(value) == expected
+
+
+def test_search_query_for_chosen_infoboxes():
+    q = candidates.search_query(None, ["college_coach"])
+    assert q == ('insource:"alma_mater" incategory:'
+                 'Pages_using_infobox_college_coach_with_deprecated_parameters')
+
+
+def test_replica_query_for_chosen_infoboxes():
+    sql, args = replica.build_query("", "Biography", 30,
+                                    candidates.tracking_categories(["academic"]))
+    assert sql.count("%s") == len(args)
+    assert args[0] == "Pages_using_infobox_academic_with_deprecated_parameters"
+    assert len([a for a in args if str(a).startswith("Pages_using")]) == 1
+
+
+def test_next_searches_only_chosen_infoboxes(client_for):
+    client = client_for(make_page("Jane Doe", RENAME_TEXT))
+    client.set_cookie("infoboxes", "college_coach")
+    assert client.get("/next").status_code == 302
+    query = client.application.extensions["wiki"].queries[-1]
+    assert query.endswith("incategory:Pages_using_infobox_college_coach_with_deprecated_parameters")
+
+
+def test_next_nothing_found_mentions_filters_when_narrowed(client_for):
+    client = client_for(make_page("Jane Doe", RENAME_TEXT), supported=False)
+    client.set_cookie("infoboxes", "college_coach")
+    assert "matching these filters" in client.get("/next").get_data(as_text=True)
+
+
+def test_settings_saves_chosen_infoboxes(client_for):
+    client = client_for()
+    base = {"access": "autoconfirmed", "watch": "1", "infoboxes": "1"}
+    body = client.get("/settings").get_data(as_text=True)
+    assert body.count('name="infobox"') == len(ALL_INFOBOXES)
+    assert body.count('name="infobox" value="college_coach" checked') == 1
+
+    r = client.post("/settings", data={**base, "infobox": ["college_coach", "academic"]})
+    assert r.headers["Set-Cookie"].startswith("infoboxes=academic.college_coach;")
+    body = client.get("/settings").get_data(as_text=True)
+    assert 'value="academic" checked' in body and 'value="person" >' in body
+    index = client.get("/").get_data(as_text=True)
+    assert "Infoboxes: only" in index and "Infobox college coach" in index
+    assert "in the infoboxes you picked" in index
+
+    r = client.post("/settings", data={**base, "infobox": ALL_INFOBOXES})
+    assert r.headers["Set-Cookie"].startswith("infoboxes=;")
+    assert "Infoboxes: only" not in client.get("/").get_data(as_text=True)
+
+
+def test_settings_all_ticked_sets_no_cookie(client_for):
+    r = client_for().post("/settings", data={"access": "autoconfirmed", "watch": "1",
+                                             "infoboxes": "1", "infobox": ALL_INFOBOXES})
+    assert "Set-Cookie" not in r.headers
+
+
+def test_settings_needs_at_least_one_infobox(client_for):
+    client = client_for()
+    r = client.post("/settings", data={"access": "extendedconfirmed", "watch": "1",
+                                       "kind": "merge", "infoboxes": "1"})
+    body = r.get_data(as_text=True)
+    assert r.status_code == 400
+    assert "Tick at least one infobox." in body and "Nothing was saved." in body
+    assert "Set-Cookie" not in r.headers
+    # What was submitted is shown again, so nothing has to be re-entered.
+    assert '<option value="extendedconfirmed" selected>' in body
+    assert '<option value="merge" selected>' in body

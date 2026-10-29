@@ -122,7 +122,9 @@ summary { cursor: pointer; font-weight: 600; }
 .access { display: grid; gap: 0.25rem; margin-bottom: 1rem; }
 label.check.setting { font-weight: 600; font-size: 0.9rem; }
 label.check.setting + .hint { margin: 0.25rem 0 1rem; }
-.access > span:first-child { font-weight: 600; font-size: 0.9rem; }
+.access > span:first-child, .access > legend { font-weight: 600; font-size: 0.9rem; }
+fieldset.access { border: 0; padding: 0; margin-inline: 0; min-width: 0; }
+fieldset.access > legend { padding: 0; margin-bottom: 0.25rem; }
 select {
   font: inherit; color: var(--text); background: var(--surface); max-width: 100%;
   border: 1px solid var(--border-strong); border-radius: var(--radius); padding: 0.45rem 0.5rem; min-height: 44px;

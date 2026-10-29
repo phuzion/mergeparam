@@ -9,7 +9,7 @@
     how the two values fit together.
   </p>
   {% if remaining %}
-  <p class="count"><strong>About {{ "{:,}".format(remaining) }}</strong> articles left.</p>
+  <p class="count"><strong>About {{ "{:,}".format(remaining) }}</strong> articles left{% if infoboxes_narrowed %} in the infoboxes you picked{% endif %}.</p>
   {% endif %}
 </section>
 
@@ -50,6 +50,11 @@
       <p class="hint">Use either or both. Subcategories can't be combined with a WikiProject.</p>
     </div>
   </details>
+  {% if infoboxes_narrowed %}
+  <p class="hint">Infoboxes: only
+    {% for key in infoboxes %}<code>{{ "{{" ~ all_infoboxes[key] ~ "}}" }}</code>{{ ", " if not loop.last }}{% endfor %}.
+    <a href="{{ url_for('settings') }}">Change</a></p>
+  {% endif %}
   {% if kind != "all" %}
   <p class="hint">Showing: <strong>{{ kinds[kind]|lower }}</strong>. <a href="{{ url_for('settings') }}">Change</a></p>
   {% endif %}

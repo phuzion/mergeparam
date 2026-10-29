@@ -20,6 +20,7 @@ WATCH_COOKIE = "watch"      # "0" when the watchlist box should start unticked
 AUTO_COOKIE = "auto"        # "1" to move on automatically after publishing
 KIND_COOKIE = "kind"        # which kinds of fix to show, when not all of them
 THEME_COOKIE = "theme"      # "light" or "dark"; no cookie means follow the device
+INFOBOX_COOKIE = "infoboxes"  # e.g. "academic.college_coach", when not all of them
 COOKIE_MAX_AGE = 365 * 24 * 3600
 
 # The theme toggle cycles through these, in this order.
@@ -78,6 +79,12 @@ def create_app(wiki: Wiki | None = None) -> Flask:
     def current_kind() -> str:
         return candidates.valid_kind(request.cookies.get(KIND_COOKIE))
 
+    def current_infoboxes() -> list[str]:
+        return candidates.valid_infoboxes(request.cookies.get(INFOBOX_COOKIE))
+
+    def narrowed(infoboxes: list[str]) -> bool:
+        return len(infoboxes) < len(candidates.INFOBOXES)
+
     def current_theme() -> str:
         theme = request.cookies.get(THEME_COOKIE)
         return theme if theme in ("light", "dark") else "system"
@@ -88,6 +95,8 @@ def create_app(wiki: Wiki | None = None) -> Flask:
                 "default_access": candidates.DEFAULT_ACCESS, "access": current_access(),
                 "watch": current_watch(), "auto": current_auto(),
                 "kinds": candidates.KINDS, "kind": current_kind(),
+                "all_infoboxes": candidates.INFOBOXES, "infoboxes": current_infoboxes(),
+                "infoboxes_narrowed": narrowed(current_infoboxes()),
                 "themes": THEMES, "theme": current_theme(), "next_theme": next_theme(current_theme()),
                 "protection_levels": PROTECTION_LEVELS}
 
@@ -126,7 +135,7 @@ def create_app(wiki: Wiki | None = None) -> Flask:
     def render_index(filters: Filters, error: str = "", message: str = "", status: int = 200):
         remaining = None
         try:
-            remaining = get_wiki().search_total(candidates.search_query())
+            remaining = get_wiki().search_total(candidates.search_query(None, current_infoboxes()))
         except WikiError:
             pass
         return render_template("index.html", filters=filters, remaining=remaining,
@@ -141,12 +150,13 @@ def create_app(wiki: Wiki | None = None) -> Flask:
                 return render_index(filters, error=f"There is no “Category:{filters.category}” "
                                                    "on English Wikipedia.")
             found = candidates.find_next(get_wiki(), filters, current_access(), exclude=skip,
-                                         kind=current_kind())
+                                         kind=current_kind(), infoboxes=current_infoboxes())
         except (FilterError, ReplicaUnavailable, WikiError) as e:
             return render_index(filters, error=str(e), status=503 if isinstance(e, WikiError) else 200)
         if not found:
             msg = ("No articles matching these filters need this fix right now."
-                   if filters else "Couldn't find an article to fix. Please try again.")
+                   if filters or narrowed(current_infoboxes())
+                   else "Couldn't find an article to fix. Please try again.")
             return render_index(filters, message=msg)
         page, _ = found
         return redirect(url_for("fix", title=page.title, **filters.as_args()))
@@ -269,6 +279,15 @@ def create_app(wiki: Wiki | None = None) -> Flask:
     def save_settings():
         if not same_site():
             abort(403)
+        # The form always sends "infoboxes", so no "infobox" ticks means all were unticked.
+        chosen = request.form.getlist("infobox")
+        if "infoboxes" in request.form and not chosen:
+            return render_template(
+                "settings.html", error="Tick at least one infobox.",
+                access=candidates.valid_access(request.form.get("access")),
+                watch=request.form.get("watch") == "1", auto=request.form.get("auto") == "1",
+                kind=candidates.valid_kind(request.form.get("kind")), infoboxes=[],
+                infoboxes_narrowed=True), 400
         resp = redirect(url_for("settings", saved=1))
         access = candidates.valid_access(request.form.get("access"))
         remember(resp, ACCESS_COOKIE, None if access == candidates.DEFAULT_ACCESS else access)
@@ -277,6 +296,8 @@ def create_app(wiki: Wiki | None = None) -> Flask:
         remember(resp, AUTO_COOKIE, "1" if request.form.get("auto") == "1" else None)
         kind = candidates.valid_kind(request.form.get("kind"))
         remember(resp, KIND_COOKIE, None if kind == candidates.DEFAULT_KIND else kind)
+        infoboxes = candidates.valid_infoboxes(".".join(chosen))
+        remember(resp, INFOBOX_COOKIE, ".".join(infoboxes) if narrowed(infoboxes) else None)
         if request.form.get("theme") in THEMES:
             remember_theme(resp, request.form["theme"])
         return resp

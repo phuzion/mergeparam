@@ -13,8 +13,10 @@ class ReplicaUnavailable(RuntimeError):
     pass
 
 
-def build_query(category: str, project: str, limit: int) -> tuple[str, list]:
-    tracking = [c.replace(" ", "_") for c in config.TRACKING_CATEGORIES.values()]
+def build_query(category: str, project: str, limit: int,
+                tracking_categories: list[str] | None = None) -> tuple[str, list]:
+    tracking = [c.replace(" ", "_")
+                for c in tracking_categories or config.TRACKING_CATEGORIES.values()]
     sql = [
         "SET STATEMENT max_statement_time=30 FOR",
         "SELECT DISTINCT p.page_title FROM page p",
@@ -56,8 +58,9 @@ def _connect():
             "aren't reachable right now.") from e
 
 
-def random_titles(category: str, project: str, limit: int = 30) -> list[str]:
-    sql, args = build_query(category, project, limit)
+def random_titles(category: str, project: str, limit: int = 30,
+                  tracking_categories: list[str] | None = None) -> list[str]:
+    sql, args = build_query(category, project, limit, tracking_categories)
     conn = _connect()
     try:
         with conn.cursor() as cur:

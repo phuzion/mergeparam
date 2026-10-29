@@ -30,6 +30,13 @@ KINDS = {
 }
 DEFAULT_KIND = "all"
 
+# Which infoboxes to look in, chosen on the settings page: a short key for
+# each template in config.TRACKING_CATEGORIES, e.g. "college_coach".
+INFOBOXES = {
+    name.removeprefix("Infobox ").lower().replace(" ", "_"): name
+    for name in config.TRACKING_CATEGORIES
+}
+
 
 @dataclass
 class Filters:
@@ -73,6 +80,17 @@ def valid_kind(value: str | None) -> str:
     return value if value in KINDS else DEFAULT_KIND
 
 
+def valid_infoboxes(value: str | None) -> list[str]:
+    """The chosen infobox keys, or all of them when none (or no valid ones) are chosen."""
+    chosen = {key for key in (value or "").split(".") if key in INFOBOXES}
+    return [key for key in INFOBOXES if key in chosen] or list(INFOBOXES)
+
+
+def tracking_categories(infoboxes: list[str] | None = None) -> list[str]:
+    keys = infoboxes or list(INFOBOXES)
+    return [config.TRACKING_CATEGORIES[INFOBOXES[key]] for key in keys]
+
+
 def is_rename(target: Target) -> bool:
     """Only |alma_mater= is filled in, so the fix is a straight rename."""
     return not (target.education and bare(target.education))
@@ -95,8 +113,8 @@ def _quote(value: str) -> str:
     return '"' + value.replace("\\", "\\\\").replace('"', '\\"') + '"'
 
 
-def search_query(filters: Filters | None = None) -> str:
-    cats = "|".join(c.replace(" ", "_") for c in config.TRACKING_CATEGORIES.values())
+def search_query(filters: Filters | None = None, infoboxes: list[str] | None = None) -> str:
+    cats = "|".join(c.replace(" ", "_") for c in tracking_categories(infoboxes))
     query = f'insource:"alma_mater" incategory:{cats}'
     if filters and filters.category:
         keyword = "deepcategory" if filters.subcats else "incategory"
@@ -104,19 +122,22 @@ def search_query(filters: Filters | None = None) -> str:
     return query
 
 
-def random_titles(wiki: Wiki, filters: Filters, limit: int = 30) -> list[str]:
+def random_titles(wiki: Wiki, filters: Filters, limit: int = 30,
+                  infoboxes: list[str] | None = None) -> list[str]:
     if filters.project:
         if filters.subcats:
             raise FilterError("Subcategories can't be combined with a WikiProject filter. "
                               "Untick “include subcategories” or clear the WikiProject.")
-        return replica.random_titles(filters.category, filters.project, limit)
-    return wiki.search(search_query(filters), limit=limit)[0]
+        return replica.random_titles(filters.category, filters.project, limit,
+                                     tracking_categories(infoboxes))
+    return wiki.search(search_query(filters, infoboxes), limit=limit)[0]
 
 
 def find_next(wiki: Wiki, filters: Filters, access: str = DEFAULT_ACCESS,
-              exclude: set[str] = frozenset(), kind: str = DEFAULT_KIND) -> tuple[Page, Target] | None:
+              exclude: set[str] = frozenset(), kind: str = DEFAULT_KIND,
+              infoboxes: list[str] | None = None) -> tuple[Page, Target] | None:
     """A random page that needs fixing and that the tool can fix."""
-    titles = [t for t in random_titles(wiki, filters) if t not in exclude]
+    titles = [t for t in random_titles(wiki, filters, infoboxes=infoboxes) if t not in exclude]
     for i in range(0, len(titles), BATCH):
         for page in wiki.latest(titles[i:i + BATCH]):
             if not can_edit(page, access):

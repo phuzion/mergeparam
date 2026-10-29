@@ -4,6 +4,7 @@
 <section class="card narrow">
   <h1>Settings</h1>
   {% if saved %}<div class="notice" role="status">Saved.</div>{% endif %}
+  {% if error %}<div class="notice error" role="alert">{{ error }} Nothing was saved.</div>{% endif %}
   <p class="hint">Most people never need to change anything here.</p>
 
   <form method="post" action="{{ url_for('save_settings') }}">
@@ -19,6 +20,21 @@
         to <code>|education=</code>. When both are filled in, you decide how to combine them.
       </span>
     </label>
+    <fieldset class="access infoboxes">
+      <legend>Infoboxes to work on</legend>
+      <input type="hidden" name="infoboxes" value="1">
+      {% for key, name in all_infoboxes.items() %}
+      <label class="check">
+        <input type="checkbox" name="infobox" value="{{ key }}" {% if key in infoboxes %}checked{% endif %}>
+        <code>{{ "{{" ~ name ~ "}}" }}</code>
+      </label>
+      {% endfor %}
+      <span class="hint">
+        Untick the ones you don't want. Templates that wrap one of these, such as
+        <code>{{ "{{Infobox military person}}" }}</code> for <code>{{ "{{Infobox person}}" }}</code>,
+        come along with it. All are ticked by default.
+      </span>
+    </fieldset>
     <label class="access">
       <span>Protected articles I can edit</span>
       <select name="access">
