@@ -31,7 +31,7 @@ KINDS = {
 DEFAULT_KIND = "all"
 
 # Which infoboxes to look in, chosen on the settings page: a short key for
-# each template in config.TRACKING_CATEGORIES, e.g. "college_coach".
+# each template in config.TRACKING_CATEGORIES, e.g. "christian_leader".
 INFOBOXES = {
     name.removeprefix("Infobox ").lower().replace(" ", "_"): name
     for name in config.TRACKING_CATEGORIES

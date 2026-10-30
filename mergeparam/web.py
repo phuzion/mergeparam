@@ -20,7 +20,7 @@ WATCH_COOKIE = "watch"      # "0" when the watchlist box should start unticked
 AUTO_COOKIE = "auto"        # "1" to move on automatically after publishing
 KIND_COOKIE = "kind"        # which kinds of fix to show, when not all of them
 THEME_COOKIE = "theme"      # "light" or "dark"; no cookie means follow the device
-INFOBOX_COOKIE = "infoboxes"  # e.g. "academic.college_coach", when not all of them
+INFOBOX_COOKIE = "infoboxes"  # e.g. "academic.christian_leader", when not all of them
 COOKIE_MAX_AGE = 365 * 24 * 3600
 
 # The theme toggle cycles through these, in this order.

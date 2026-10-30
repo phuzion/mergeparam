@@ -22,7 +22,6 @@ TRACKING_CATEGORIES = {
     "Infobox officeholder": "Pages using infobox officeholder with deprecated parameters",
     "Infobox academic": "Pages using infobox academic with deprecated parameters",
     "Infobox Christian leader": "Pages using infobox Christian leader with deprecated parameters",
-    "Infobox college coach": "Pages using infobox college coach with deprecated parameters",
 }
 
 RFC_PAGE = ("Wikipedia:Village pump (miscellaneous)/Archive 88"

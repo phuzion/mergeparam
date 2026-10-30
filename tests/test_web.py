@@ -597,7 +597,7 @@ ALL_INFOBOXES = list(candidates.INFOBOXES)
 
 
 def test_infobox_keys():
-    assert candidates.INFOBOXES["college_coach"] == "Infobox college coach"
+    assert candidates.INFOBOXES["person"] == "Infobox person"
     assert candidates.INFOBOXES["christian_leader"] == "Infobox Christian leader"
 
 
@@ -605,17 +605,17 @@ def test_infobox_keys():
     (None, ALL_INFOBOXES),
     ("", ALL_INFOBOXES),
     ("bogus", ALL_INFOBOXES),
-    ("college_coach", ["college_coach"]),
-    ("college_coach.bogus.academic", ["academic", "college_coach"]),  # in the configured order
+    ("christian_leader", ["christian_leader"]),
+    ("christian_leader.bogus.academic", ["academic", "christian_leader"]),  # in the configured order
 ])
 def test_valid_infoboxes(value, expected):
     assert candidates.valid_infoboxes(value) == expected
 
 
 def test_search_query_for_chosen_infoboxes():
-    q = candidates.search_query(None, ["college_coach"])
+    q = candidates.search_query(None, ["christian_leader"])
     assert q == ('insource:"alma_mater" incategory:'
-                 'Pages_using_infobox_college_coach_with_deprecated_parameters')
+                 'Pages_using_infobox_Christian_leader_with_deprecated_parameters')
 
 
 def test_replica_query_for_chosen_infoboxes():
@@ -628,15 +628,15 @@ def test_replica_query_for_chosen_infoboxes():
 
 def test_next_searches_only_chosen_infoboxes(client_for):
     client = client_for(make_page("Jane Doe", RENAME_TEXT))
-    client.set_cookie("infoboxes", "college_coach")
+    client.set_cookie("infoboxes", "christian_leader")
     assert client.get("/next").status_code == 302
     query = client.application.extensions["wiki"].queries[-1]
-    assert query.endswith("incategory:Pages_using_infobox_college_coach_with_deprecated_parameters")
+    assert query.endswith("incategory:Pages_using_infobox_Christian_leader_with_deprecated_parameters")
 
 
 def test_next_nothing_found_mentions_filters_when_narrowed(client_for):
     client = client_for(make_page("Jane Doe", RENAME_TEXT), supported=False)
-    client.set_cookie("infoboxes", "college_coach")
+    client.set_cookie("infoboxes", "christian_leader")
     assert "matching these filters" in client.get("/next").get_data(as_text=True)
 
 
@@ -645,14 +645,14 @@ def test_settings_saves_chosen_infoboxes(client_for):
     base = {"access": "autoconfirmed", "watch": "1", "infoboxes": "1"}
     body = client.get("/settings").get_data(as_text=True)
     assert body.count('name="infobox"') == len(ALL_INFOBOXES)
-    assert body.count('name="infobox" value="college_coach" checked') == 1
+    assert body.count('name="infobox" value="christian_leader" checked') == 1
 
-    r = client.post("/settings", data={**base, "infobox": ["college_coach", "academic"]})
-    assert r.headers["Set-Cookie"].startswith("infoboxes=academic.college_coach;")
+    r = client.post("/settings", data={**base, "infobox": ["christian_leader", "academic"]})
+    assert r.headers["Set-Cookie"].startswith("infoboxes=academic.christian_leader;")
     body = client.get("/settings").get_data(as_text=True)
     assert 'value="academic" checked' in body and 'value="person" >' in body
     index = client.get("/").get_data(as_text=True)
-    assert "Infoboxes: only" in index and "Infobox college coach" in index
+    assert "Infoboxes: only" in index and "Infobox Christian leader" in index
     assert "in the infoboxes you picked" in index
 
     r = client.post("/settings", data={**base, "infobox": ALL_INFOBOXES})
